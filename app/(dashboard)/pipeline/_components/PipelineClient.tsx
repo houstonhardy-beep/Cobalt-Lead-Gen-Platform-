@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { OppDrawer } from './OppDrawer'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -174,7 +175,7 @@ function SelectControl({
 const COLS = '1fr 150px 120px 110px 110px 72px 72px 96px 88px'
 const COL_HEADERS = ['Opportunity', 'Stage', 'Rep', 'Job Type', 'Product', 'Stage Age', 'Pipeline', 'Est. Value', 'Weighted']
 
-function OppRow({ row }: { row: PipelineRow }) {
+function OppRow({ row, onSelect }: { row: PipelineRow; onSelect: () => void }) {
   const [hovered, setHovered] = useState(false)
   const stageMeta = STAGE_META[row.stage ?? ''] ?? { label: row.stage ?? '—', color: '#94a3b8' }
 
@@ -182,8 +183,8 @@ function OppRow({ row }: { row: PipelineRow }) {
     <div
       role="button"
       tabIndex={0}
-      onClick={() => console.log('opportunity:', row.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter') console.log('opportunity:', row.id) }}
+      onClick={onSelect}
+      onKeyDown={(e) => { if (e.key === 'Enter') onSelect() }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -276,6 +277,8 @@ function OppRow({ row }: { row: PipelineRow }) {
 // ─── PipelineClient ───────────────────────────────────────────────────────────
 
 export function PipelineClient({ rows }: { rows: PipelineRow[] }) {
+  const [liveRows, setLiveRows]                         = useState<PipelineRow[]>(rows)
+  const [selectedId, setSelectedId]                     = useState<string | null>(null)
   const [search, setSearch]                             = useState('')
   const [filterRep, setFilterRep]                       = useState('all')
   const [filterStage, setFilterStage]                   = useState('all')
@@ -285,47 +288,57 @@ export function PipelineClient({ rows }: { rows: PipelineRow[] }) {
   const [filterDateRange, setFilterDateRange]           = useState('all')
   const [sort, setSort]                                 = useState('value')
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setSelectedId(null) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
+  function patchRow(id: string, patch: Partial<PipelineRow>) {
+    setLiveRows((prev) => prev.map((r) => r.id === id ? { ...r, ...patch } : r))
+  }
+
   // ── Filter option lists derived from data ──────────────────────────────────
 
   const repOptions = useMemo(() => {
     const seen = new Map<string, string>()
-    for (const r of rows) if (r.repId && r.repName) seen.set(r.repId, r.repName)
+    for (const r of liveRows) if (r.repId && r.repName) seen.set(r.repId, r.repName)
     const sorted = [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
     return [{ value: 'all', label: 'All Reps' }, ...sorted.map(([id, name]) => ({ value: id, label: name }))]
-  }, [rows])
+  }, [liveRows])
 
   const stageOptions = useMemo(() => {
     const seen = new Set<string>()
-    for (const r of rows) if (r.stage) seen.add(r.stage)
+    for (const r of liveRows) if (r.stage) seen.add(r.stage)
     return [
       { value: 'all', label: 'All Stages' },
       ...STAGE_ORDER.filter((s) => seen.has(s)).map((s) => ({ value: s, label: STAGE_META[s]?.label ?? s })),
     ]
-  }, [rows])
+  }, [liveRows])
 
   const jobTypeOptions = useMemo(() => {
     const seen = new Set<string>()
-    for (const r of rows) if (r.jobType) seen.add(r.jobType)
+    for (const r of liveRows) if (r.jobType) seen.add(r.jobType)
     return [{ value: 'all', label: 'All Job Types' }, ...Array.from(seen).map((jt) => ({ value: jt, label: JOB_TYPE_LABEL[jt] ?? jt }))]
-  }, [rows])
+  }, [liveRows])
 
   const productCategoryOptions = useMemo(() => {
     const seen = new Set<string>()
-    for (const r of rows) if (r.productCategory) seen.add(r.productCategory)
+    for (const r of liveRows) if (r.productCategory) seen.add(r.productCategory)
     return [{ value: 'all', label: 'All Categories' }, ...Array.from(seen).map((pc) => ({ value: pc, label: PRODUCT_CATEGORY_LABEL[pc] ?? pc }))]
-  }, [rows])
+  }, [liveRows])
 
   const leadSourceOptions = useMemo(() => {
     const seen = new Set<string>()
-    for (const r of rows) if (r.leadSource) seen.add(r.leadSource)
+    for (const r of liveRows) if (r.leadSource) seen.add(r.leadSource)
     return [{ value: 'all', label: 'All Sources' }, ...Array.from(seen).map((ls) => ({ value: ls, label: LEAD_SOURCE_LABEL[ls] ?? ls }))]
-  }, [rows])
+  }, [liveRows])
 
   // ── Filter + sort ──────────────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    const result = rows.filter((r) => {
+    const result = liveRows.filter((r) => {
       if (q && !r.title.toLowerCase().includes(q) && !r.company.toLowerCase().includes(q)) return false
       if (filterRep !== 'all' && r.repId !== filterRep) return false
       if (filterStage !== 'all' && r.stage !== filterStage) return false
@@ -348,11 +361,11 @@ export function PipelineClient({ rows }: { rows: PipelineRow[] }) {
         default:          return 0
       }
     })
-  }, [rows, search, filterRep, filterStage, filterJobType, filterProductCategory, filterLeadSource, filterDateRange, sort])
+  }, [liveRows, search, filterRep, filterStage, filterJobType, filterProductCategory, filterLeadSource, filterDateRange, sort])
 
   // ── Derived totals ─────────────────────────────────────────────────────────
 
-  const allTotal       = rows.reduce((s, r) => s + (r.estimatedRevenue ?? 0), 0)
+  const allTotal       = liveRows.reduce((s, r) => s + (r.estimatedRevenue ?? 0), 0)
   const filteredTotal   = filtered.reduce((s, r) => s + (r.estimatedRevenue ?? 0), 0)
   const filteredWeighted = filtered.reduce((s, r) => s + (r.weightedValue ?? 0), 0)
 
@@ -392,7 +405,7 @@ export function PipelineClient({ rows }: { rows: PipelineRow[] }) {
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)', margin: 0 }}>Pipeline</h1>
         <p style={{ fontSize: 13, color: 'var(--text3)', margin: '4px 0 0' }}>
-          {rows.length} open {rows.length === 1 ? 'opportunity' : 'opportunities'} · {fmt$(allTotal)} unweighted pipeline
+          {liveRows.length} open {liveRows.length === 1 ? 'opportunity' : 'opportunities'} · {fmt$(allTotal)} unweighted pipeline
         </p>
       </div>
 
@@ -513,9 +526,15 @@ export function PipelineClient({ rows }: { rows: PipelineRow[] }) {
             ))}
           </div>
 
-          {filtered.map((row) => <OppRow key={row.id} row={row} />)}
+          {filtered.map((row) => <OppRow key={row.id} row={row} onSelect={() => setSelectedId(row.id)} />)}
         </div>
       )}
+
+      <OppDrawer
+        oppId={selectedId}
+        onClose={() => setSelectedId(null)}
+        onRowPatch={patchRow}
+      />
     </div>
   )
 }
