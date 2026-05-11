@@ -1,0 +1,575 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  REP
+  TENANT_ADMIN
+  COBALT_SUPER_ADMIN
+}
+
+enum LeadHeat {
+  HOT
+  WARM
+  COLD
+  NURTURE
+  FOLLOWUP
+  CONTACTED
+}
+
+enum LeadStage {
+  SIGNAL
+  PROSPECT
+  OUTREACH_SENT
+  ENGAGED
+  QUALIFIED
+  PROPOSAL
+  PROPOSAL_SENT
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+  NURTURE
+}
+
+enum LeadVertical {
+  EDUCATION
+  GOVERNMENT
+  COMMERCIAL
+  HEALTHCARE
+  INDUSTRIAL
+}
+
+enum OpportunityType {
+  RFP
+  PERMIT
+  BID
+  GRANT
+  RENEWAL
+}
+
+enum OpportunitySource {
+  SAM_GOV
+  DODGE
+  MANUAL
+}
+
+enum OpportunityStatus {
+  OPEN
+  PURSUING
+  WON
+  LOST
+}
+
+enum IntegrationProvider {
+  CONNECTWISE
+  HUBSPOT
+  APOLLO
+  ZOOMINFO
+  DODGE
+  SAM_GOV
+  VERKADA
+  SENDGRID
+  TWILIO
+  MAPBOX
+}
+
+enum OutreachType {
+  COLD_EMAIL
+  COLD_CALL
+  LINKEDIN
+  FOLLOW_UP
+  POST_QUOTE
+  CONTRACT
+  RFP_COVER
+  SMS
+}
+
+enum OutreachResponse {
+  PENDING
+  YES
+  NO
+  OUT_OF_OFFICE
+}
+
+enum ProductCategory {
+  ACCESS_CONTROL
+  VIDEO_SURVEILLANCE
+  INTRUSION_ALARM
+  INTERCOM_AUDIO
+  NETWORKING_INFRASTRUCTURE
+  FIRE_LIFE_SAFETY
+  STRUCTURED_CABLING
+  AUTO_DOOR_SLIDING
+  AUTO_DOOR_ROTATING
+  AUTO_DOOR_OVERHEAD
+  AUTO_DOOR_SWING
+  AUTO_DOOR_FOLDING
+  MANUAL_DOOR_SLIDING
+  MANUAL_DOOR_ROTATING
+  MANUAL_DOOR_OVERHEAD
+  MANUAL_DOOR_SWING
+  MANUAL_DOOR_FOLDING
+  INTEGRATED_SYSTEMS
+  SYSTEMS_OTHER
+}
+
+enum JobType {
+  NEW_CONSTRUCTION
+  MAC
+  INSTALL
+  BOX_SALE
+  UPGRADE_REFRESH
+  RFP_BID
+  SERVICE_ON_DEMAND
+  SERVICE_CONTRACTED
+}
+
+enum LeadSource {
+  REFERRAL
+  SAM_GOV
+  RFP_BID_BOARD
+  DODGE_DATA
+  COLD_OUTREACH
+  INBOUND_WEB
+  EXISTING_CUSTOMER
+  PARTNER_VENDOR
+}
+
+enum CustomerType {
+  NEW_LOGO
+  EXISTING
+}
+
+enum OrgSize {
+  SMALL
+  MEDIUM
+  LARGE
+  ENTERPRISE
+}
+
+enum AcquisitionSource {
+  REFERRAL
+  COLD_OUTREACH
+  RFP
+  INBOUND
+  EXISTING_RELATIONSHIP
+}
+
+// ─── TENANT ──────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id        String   @id @default(cuid())
+  slug      String   @unique  // e.g. "lek" → lek.cobalt.app
+  name      String
+  active    Boolean  @default(true)
+  config    Json     @default("{}")   // geography, verticals, AI prompt context, territory
+  branding  Json     @default("{}")   // primaryColor, logo, companyName, tagline
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  leads              Lead[]
+  customers          Customer[]
+  notes              Note[]
+  opportunities      Opportunity[]
+  outreachLog        OutreachLog[]
+  integrationConfigs IntegrationConfig[]
+  productTypes       ProductType[]
+  stageHistory       StageHistory[]
+  customerLocations  CustomerLocation[]
+
+  @@index([slug])
+}
+
+// ─── AUTH (NextAuth v5) ───────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  tenantId          String?   // null = Cobalt Super Admin (cross-tenant access)
+  name              String?
+  email             String    @unique
+  emailVerified     DateTime?
+  image             String?
+  passwordHash      String?
+  role              UserRole  @default(REP)
+  active            Boolean   @default(true)
+  // Region IDs from the tenant's TenantGeography.regions — controls what a rep sees on the map
+  assignedRegionIds String[]  @default([])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id])
+  accounts     Account[]
+  sessions     Session[]
+  leads        Lead[]        @relation("AssignedLeads")
+  leadLogs     LeadLog[]
+  notes        Note[]
+  outreachLog  OutreachLog[]
+  stageHistory StageHistory[]
+
+  @@index([tenantId])
+  @@index([email])
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@unique([userId, provider])  // prevent duplicate OAuth provider links per user
+  @@index([provider])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ─── LEADS ───────────────────────────────────────────────────────────────────
+
+model Lead {
+  id           String        @id @default(cuid())
+  tenantId     String
+  assignedToId String?
+
+  company      String
+  contact      String?
+  contactTitle String?
+  phone        String?
+  email        String?
+
+  vertical     LeadVertical?
+  stage        LeadStage     @default(PROSPECT)
+  heat         LeadHeat      @default(COLD)
+
+  value        Float?        // estimated deal value in dollars
+
+  address      String?
+  city         String?
+  state        String?
+  zip          String?
+  lat          Float?
+  lng          Float?
+
+  productCategory ProductCategory?
+  jobType         JobType?
+  leadSource      LeadSource?
+
+  signal       String?       // trigger text ("broke ground on new school")
+  signalSource String?       // where the signal came from
+
+  nextFollowUp DateTime?
+  notes        String?       // freeform rep notes on the lead overall
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  assignedTo    User?         @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  logs          LeadLog[]
+  notesList     Note[]
+  outreachLog   OutreachLog[]
+  opportunities Opportunity[]
+
+  @@index([tenantId])
+  @@index([tenantId, stage])
+  @@index([tenantId, heat])
+  @@index([assignedToId])
+}
+
+model LeadLog {
+  id     String   @id @default(cuid())
+  leadId String
+  userId String?
+  date   DateTime @default(now())
+  action String
+
+  lead Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([leadId])
+}
+
+// ─── NOTES ───────────────────────────────────────────────────────────────────
+
+model Note {
+  id        String   @id @default(cuid())
+  tenantId  String
+  leadId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([leadId])
+  @@index([tenantId])
+}
+
+// ─── CUSTOMERS ───────────────────────────────────────────────────────────────
+// A Customer is a won account — distinct from a Lead.
+// Opportunities and renewals attach here post-close.
+
+model Customer {
+  id              String        @id @default(cuid())
+  tenantId        String
+
+  name            String
+  contact         String?
+  phone           String?
+  email           String?
+  address         String?
+  city            String?
+  state           String?
+  zip             String?
+  lat             Float?
+  lng             Float?
+
+  hqAddress       String?
+  hqCity          String?
+  hqState         String?
+  hqZip           String?
+  hqLat           Float?
+  hqLng           Float?
+
+  vertical        LeadVertical?
+  contractValue   Float?
+  startDate       DateTime?
+  renewalDate     DateTime?
+  verkadaCustomer Boolean            @default(false)
+
+  customerType       CustomerType?
+  orgSize            OrgSize?
+  employeeCount      Int?
+  squareFootage      Int?
+  decisionMakerTitle String?
+  acquisitionSource  AcquisitionSource?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  tenant        Tenant             @relation(fields: [tenantId], references: [id])
+  opportunities Opportunity[]
+  locations     CustomerLocation[]
+
+  @@index([tenantId])
+  @@index([tenantId, renewalDate])
+  @@index([tenantId, customerType])
+}
+
+// ─── OPPORTUNITIES ────────────────────────────────────────────────────────────
+// Can attach to a Lead (pre-close) OR a Customer (post-close renewal/expansion).
+// Both foreign keys are nullable — an opportunity can exist standalone.
+
+model Opportunity {
+  id         String            @id @default(cuid())
+  tenantId   String
+  leadId     String?
+  customerId String?
+
+  title      String
+  type       OpportunityType
+  jobType    JobType?
+  source     OpportunitySource @default(MANUAL)
+  value      Float?
+  status     OpportunityStatus @default(OPEN)
+  dueDate    DateTime?
+  notes      String?
+
+  estimatedRevenue      Float?
+  estimatedCost         Float?
+  estimatedGrossProfit  Float?
+  estimatedGPPercent    Float?
+  expectedCloseDate     DateTime?
+  probabilityPercent    Int?
+  weightedValue         Float?   // estimatedRevenue × probabilityPercent / 100, stored for fast querying
+
+  productCategory ProductCategory?
+  leadSource      LeadSource?
+
+  jobSiteAddress  String?
+  jobSiteCity     String?
+  jobSiteState    String?
+  jobSiteZip      String?
+  jobSiteLat      Float?
+  jobSiteLng      Float?
+
+  stage          LeadStage?   // mirrors the associated lead's stage; updated when lead stage changes
+  stageChangedAt DateTime?    // when the opportunity entered the current stage
+
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id])
+  lead         Lead?                @relation(fields: [leadId], references: [id])
+  customer     Customer?            @relation(fields: [customerId], references: [id])
+  products     OpportunityProduct[]
+  stageHistory StageHistory[]
+
+  @@index([tenantId])
+  @@index([leadId])
+  @@index([customerId])
+  @@index([tenantId, status])
+  @@index([tenantId, expectedCloseDate])
+  @@index([tenantId, stage])
+}
+
+// ─── OUTREACH ─────────────────────────────────────────────────────────────────
+
+model OutreachLog {
+  id       String           @id @default(cuid())
+  tenantId String
+  leadId   String?
+  userId   String?
+
+  type     OutreachType
+  content  String
+  subject  String?
+
+  response OutreachResponse @default(PENDING)
+
+  sentAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  lead   Lead?   @relation(fields: [leadId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([leadId])
+}
+
+// ─── PRODUCT TYPES ────────────────────────────────────────────────────────────
+// Tenant-defined product/service catalog — used to line-item opportunities.
+
+model ProductType {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  name                 String
+  category             String
+  defaultMarginPercent Float?
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id])
+  opportunities OpportunityProduct[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model OpportunityProduct {
+  opportunityId String
+  productTypeId String
+  quantity      Int    @default(1)
+  unitPrice     Float?
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  productType ProductType @relation(fields: [productTypeId], references: [id])
+
+  @@id([opportunityId, productTypeId])
+  @@index([productTypeId])
+}
+
+// ─── STAGE HISTORY ────────────────────────────────────────────────────────────
+// Immutable audit log: one row per stage transition per opportunity.
+// Written whenever an opportunity's associated lead changes stage.
+
+model StageHistory {
+  id                       String     @id @default(cuid())
+  tenantId                 String
+  opportunityId            String
+  fromStage                LeadStage?
+  toStage                  LeadStage
+  changedAt                DateTime   @default(now())
+  changedById              String?
+  daysInPreviousStage      Int?
+  opportunityValueAtChange Float?     // snapshot of estimatedRevenue at time of change
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  changedBy   User?       @relation(fields: [changedById], references: [id])
+
+  @@index([tenantId])
+  @@index([opportunityId])
+  @@index([tenantId, changedAt])
+  @@index([tenantId, toStage])
+}
+
+// ─── INTEGRATIONS ─────────────────────────────────────────────────────────────
+
+model IntegrationConfig {
+  id         String              @id @default(cuid())
+  tenantId   String
+  provider   IntegrationProvider
+  enabled    Boolean             @default(false)
+  credentials Json               @default("{}") // AES-256 encrypted in app layer before write
+  settings   Json                @default("{}") // non-sensitive config: field mappings, webhooks, etc.
+  lastSyncAt DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, provider])
+  @@index([tenantId])
+}
+
+// ─── CUSTOMER LOCATIONS ───────────────────────────────────────────────────────
+// Named locations belonging to a customer — branch offices, job sites, etc.
+
+model CustomerLocation {
+  id         String   @id @default(cuid())
+  tenantId   String
+  customerId String
+
+  name       String
+  address    String?
+  city       String?
+  state      String?
+  zip        String?
+  lat        Float?
+  lng        Float?
+  isHQ       Boolean  @default(false)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([customerId])
+}

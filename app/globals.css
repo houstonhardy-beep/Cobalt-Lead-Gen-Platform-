@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+/* ── Design tokens ─────────────────────────────────────────────────────────── */
+
+:root {
+  /* Background layers */
+  --bg:  #111827;
+  --bg2: #1f2937;
+  --bg3: #283548;
+  --bg4: #334155;
+
+  /* Text */
+  --text:  #f0f4ff;
+  --text2: #94a3b8;
+  --text3: #4e6a8a;
+
+  /* Brand blue */
+  --cobalt:  #1d4ed8;
+  --cobalt2: #3b82f6;
+  --cobalt3: #60a5fa;
+
+  /* Semantic status */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger:  #ef4444;
+
+  /* Layout dimensions */
+  --sidebar-w: 224px;
+  --topbar-h:  60px;
+
+  /* Tenant-overrideable brand colors (set by dashboard layout) */
+  --brand:        var(--cobalt);
+  --brand-light:  var(--cobalt2);
+  --brand-accent: var(--warning);
+}
+
+/* ── Tailwind theme extensions ─────────────────────────────────────────────── */
+
+@theme inline {
+  --color-bg:      var(--bg);
+  --color-bg2:     var(--bg2);
+  --color-bg3:     var(--bg3);
+  --color-bg4:     var(--bg4);
+  --color-text:    var(--text);
+  --color-text2:   var(--text2);
+  --color-text3:   var(--text3);
+  --color-cobalt:  var(--cobalt);
+  --color-cobalt2: var(--cobalt2);
+  --color-cobalt3: var(--cobalt3);
+  --color-brand:   var(--brand);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger:  var(--danger);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-plex-mono);
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
