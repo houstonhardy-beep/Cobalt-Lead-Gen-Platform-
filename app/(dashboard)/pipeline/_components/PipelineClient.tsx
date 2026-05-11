@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { OppDrawer } from './OppDrawer'
+import { PipelineChart } from './PipelineChart'
+import type { ChartDataPoint } from './PipelineChart'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -170,6 +172,43 @@ function SelectControl({
   )
 }
 
+// ─── KpiCard ──────────────────────────────────────────────────────────────────
+
+function KpiCard({ label, value, target }: { label: string; value: number; target: number | null }) {
+  const pct     = target ? Math.min(100, Math.round((value / target) * 100)) : null
+  const onTrack = pct !== null && pct >= 80
+
+  return (
+    <div style={{ padding: '14px 16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)' }}>
+      <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)', marginBottom: 6 }}>
+        {label}
+      </p>
+      <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: '0 0 8px', fontVariantNumeric: 'tabular-nums' }}>
+        {fmt$(value)}
+      </p>
+      {target !== null ? (
+        <>
+          <div style={{ height: 4, borderRadius: 2, background: 'var(--bg4)', overflow: 'hidden', marginBottom: 6 }}>
+            <div style={{
+              height: '100%',
+              width: `${pct}%`,
+              borderRadius: 2,
+              background: onTrack ? '#34d399' : pct !== null && pct >= 50 ? '#fbbf24' : '#f87171',
+              transition: 'width 0.3s',
+            }} />
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--text3)', margin: 0 }}>
+            <span style={{ color: onTrack ? '#34d399' : 'var(--text2)', fontWeight: 600 }}>{pct}%</span>
+            {' of '}{fmt$(target)} target
+          </p>
+        </>
+      ) : (
+        <p style={{ fontSize: 11, color: 'var(--text3)', margin: 0 }}>No target set</p>
+      )}
+    </div>
+  )
+}
+
 // ─── OppRow ───────────────────────────────────────────────────────────────────
 
 const COLS = '1fr 150px 120px 110px 110px 72px 72px 96px 88px'
@@ -276,7 +315,24 @@ function OppRow({ row, onSelect }: { row: PipelineRow; onSelect: () => void }) {
 
 // ─── PipelineClient ───────────────────────────────────────────────────────────
 
-export function PipelineClient({ rows }: { rows: PipelineRow[] }) {
+interface PipelineTargets {
+  weightedPipelineTarget: number | null
+  monthlyAddsTarget: number | null
+}
+
+export function PipelineClient({
+  rows,
+  chartData,
+  activeStages,
+  targets,
+  thisMonthAdds,
+}: {
+  rows: PipelineRow[]
+  chartData: ChartDataPoint[]
+  activeStages: string[]
+  targets: PipelineTargets
+  thisMonthAdds: number
+}) {
   const [liveRows, setLiveRows]                         = useState<PipelineRow[]>(rows)
   const [selectedId, setSelectedId]                     = useState<string | null>(null)
   const [search, setSearch]                             = useState('')
@@ -365,9 +421,11 @@ export function PipelineClient({ rows }: { rows: PipelineRow[] }) {
 
   // ── Derived totals ─────────────────────────────────────────────────────────
 
-  const allTotal       = liveRows.reduce((s, r) => s + (r.estimatedRevenue ?? 0), 0)
-  const filteredTotal   = filtered.reduce((s, r) => s + (r.estimatedRevenue ?? 0), 0)
-  const filteredWeighted = filtered.reduce((s, r) => s + (r.weightedValue ?? 0), 0)
+  const allTotal            = liveRows.reduce((s, r) => s + (r.estimatedRevenue ?? 0), 0)
+  const currentWeightedTotal = liveRows.reduce((s, r) => s + (r.weightedValue ?? 0), 0)
+  const filteredTotal        = filtered.reduce((s, r) => s + (r.estimatedRevenue ?? 0), 0)
+  const filteredWeighted     = filtered.reduce((s, r) => s + (r.weightedValue ?? 0), 0)
+  const thisMonthLabel       = new Date().toLocaleDateString('en-US', { month: 'short' })
 
   const stageSummary = useMemo(() => {
     const map = new Map<string, { count: number; value: number }>()
@@ -408,6 +466,45 @@ export function PipelineClient({ rows }: { rows: PipelineRow[] }) {
           {liveRows.length} open {liveRows.length === 1 ? 'opportunity' : 'opportunities'} · {fmt$(allTotal)} unweighted pipeline
         </p>
       </div>
+
+      {/* Target KPI cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <KpiCard
+          label="Weighted Pipeline"
+          value={currentWeightedTotal}
+          target={targets.weightedPipelineTarget}
+        />
+        <KpiCard
+          label={`Monthly Adds (${thisMonthLabel})`}
+          value={thisMonthAdds}
+          target={targets.monthlyAddsTarget}
+        />
+      </div>
+
+      {/* Stacked bar chart */}
+      {chartData.length > 0 && (
+        <div style={{ padding: '16px 16px 8px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)', marginBottom: 12 }}>
+            Pipeline by Stage — Last 6 Months
+          </p>
+          <PipelineChart data={chartData} activeStages={activeStages} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 10 }}>
+            {activeStages.map((s) => {
+              const meta = STAGE_META[s] ?? { label: s, color: '#94a3b8' }
+              return (
+                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: meta.color, flexShrink: 0, display: 'inline-block' }} />
+                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>{meta.label}</span>
+                </div>
+              )
+            })}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#60a5fa" strokeWidth="1.5" strokeDasharray="5 3" /></svg>
+              <span style={{ fontSize: 11, color: 'var(--text3)' }}>Trend</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stage summary bar */}
       {stageSummary.length > 0 && (

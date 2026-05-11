@@ -89,11 +89,17 @@ export const STAGE_META: Record<LeadStage, { probability: number; isClosedStage:
 
 // ─── Tenant Config ────────────────────────────────────────────────────────────
 
+export interface PipelineTargets {
+  weightedTarget?: number    // total weighted pipeline $ goal
+  monthlyAddsTarget?: number // new opp $ value to add each month
+}
+
 export interface TenantConfig {
   geography: TenantGeography
   verticals: LeadVertical[]   // which verticals this tenant tracks
   prompts: TenantPromptContext
   stageProbability?: Record<LeadStage, number>  // falls back to DEFAULT_STAGE_PROBABILITY
+  pipeline?: PipelineTargets
 }
 
 // ─── Tenant Branding ──────────────────────────────────────────────────────────
