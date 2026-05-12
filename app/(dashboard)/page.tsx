@@ -314,8 +314,8 @@ export default async function CommandCenterPage({
 
       {/* Metrics row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <MetricCard label="Total Pipeline"    value={fmt$(totalPipeline)}      sub={`${openOpps.length} open opp${openOpps.length !== 1 ? 's' : ''}`} />
-        <MetricCard label="Weighted Pipeline" value={fmt$(weightedPipeline)}   sub="by probability" />
+        <MetricCard label="Total Pipeline"    value={fmt$(totalPipeline)}      sub={`${openOpps.length} open opp${openOpps.length !== 1 ? 's' : ''}`} valueColor="var(--accent)" />
+        <MetricCard label="Weighted Pipeline" value={fmt$(weightedPipeline)}   sub="by probability" valueColor="var(--accent)" />
         <MetricCard label="Hot Leads"         value={String(hotCount)}         valueColor="#f87171" />
         <MetricCard label="Follow-ups Due"    value={String(followUpCount)}    valueColor={followUpCount > 0 ? '#fbbf24' : undefined} />
         <MetricCard label="Won This Period"   value={fmt$(wonThisMonth)}       valueColor="#34d399" />
@@ -492,9 +492,9 @@ export default async function CommandCenterPage({
                     className="flex items-center gap-2 mt-3 pt-2.5"
                     style={{ borderTop: '1px solid var(--bg4)' }}
                   >
-                    <ActionBtn>AI Draft</ActionBtn>
+                    <ActionBtn primary>AI Draft</ActionBtn>
                     <ActionBtn>Research</ActionBtn>
-                    <ActionBtn>Log Activity</ActionBtn>
+                    <ActionBtn primary>Log Activity</ActionBtn>
                   </div>
                 </div>
               )
@@ -623,12 +623,16 @@ function Badge({ bg, color, children }: { bg: string; color: string; children: R
   )
 }
 
-function ActionBtn({ children }: { children: React.ReactNode }) {
+function ActionBtn({ children, primary }: { children: React.ReactNode; primary?: boolean }) {
   return (
     <button
       type="button"
       className="text-xs px-2.5 py-1 rounded"
-      style={{ background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--bg4)' }}
+      style={
+        primary
+          ? { background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)' }
+          : { background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--bg4)' }
+      }
     >
       {children}
     </button>

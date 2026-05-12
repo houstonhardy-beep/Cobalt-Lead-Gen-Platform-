@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
+import { useTenant } from '@/lib/tenant/context'
 import type { UserRole } from '@/app/generated/prisma/client'
 
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -18,20 +19,39 @@ interface TopbarProps {
 }
 
 export function Topbar({ userName, userEmail, userRole, alertCount }: TopbarProps) {
+  const { name: tenantName, branding } = useTenant()
+
   return (
     <header
       className="flex items-center justify-between px-5 shrink-0"
       style={{
         height: 'var(--topbar-h)',
         background: 'var(--sidebar-bg)',
-        borderBottom: '1px solid var(--sidebar-border)',
+        borderBottom: '2px solid var(--accent)',
       }}
     >
       {/* Left: reserved for page-level breadcrumbs injected by pages */}
       <div id="topbar-left" className="flex items-center gap-2 text-sm" />
 
-      {/* Right: alerts + user identity */}
+      {/* Right: tenant identity + alerts + user */}
       <div className="flex items-center gap-3">
+
+        {/* Tenant logo + name */}
+        <div
+          className="flex items-center gap-2 pr-3 hidden sm:flex"
+          style={{ borderRight: '1px solid var(--sidebar-border)' }}
+        >
+          {branding.logoUrl && (
+            <img
+              src={branding.logoUrl}
+              alt={tenantName}
+              style={{ height: 22, maxWidth: 80, objectFit: 'contain', display: 'block' }}
+            />
+          )}
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sidebar-text)', whiteSpace: 'nowrap' }}>
+            {tenantName}
+          </span>
+        </div>
 
         {/* Bell icon — links to Reports alerts section */}
         <Link

@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useTenant } from '@/lib/tenant/context'
 
 const NAV = [
   { href: '/',              label: 'Command Center', icon: IconRadar },
@@ -22,7 +21,6 @@ const BOTTOM_NAV = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { name, branding } = useTenant()
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/'
@@ -34,51 +32,13 @@ export function Sidebar() {
       className="flex flex-col shrink-0 h-full"
       style={{ width: 'var(--sidebar-w)', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--sidebar-border)' }}
     >
-      {/* Brand header — Cobalt platform + tenant identity */}
-      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--sidebar-border)' }}>
-
-        {/* Cobalt logo row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: 8, background: '#1A56FF',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <img
-              src="/LOGO_Cobalt_white_image_only_x2.png"
-              alt=""
-              width={19}
-              height={19}
-              style={{ objectFit: 'contain', display: 'block' }}
-            />
-          </div>
-          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--sidebar-text)' }}>
-            Cobalt
-          </span>
-        </div>
-
-        {/* Divider */}
-        <div style={{ margin: '10px 0 9px', borderTop: '1px solid var(--sidebar-border)' }} />
-
-        {/* Tenant logo + name */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {branding.logoUrl ? (
-            <img
-              src={branding.logoUrl}
-              alt={name}
-              style={{ height: 24, maxWidth: 88, objectFit: 'contain', display: 'block' }}
-            />
-          ) : (
-            <div style={{
-              width: 24, height: 24, borderRadius: 6, background: 'var(--accent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>{name.charAt(0)}</span>
-            </div>
-          )}
-          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--sidebar-text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {name}
-          </span>
-        </div>
+      {/* Brand header */}
+      <div style={{ padding: '16px 16px 14px', borderBottom: '1px solid var(--sidebar-border)', display: 'flex', alignItems: 'center' }}>
+        <img
+          src="/LOGO_Cobalt_blue_full.png"
+          alt="Cobalt"
+          style={{ height: 40, maxWidth: 160, objectFit: 'contain', display: 'block' }}
+        />
       </div>
 
       {/* Primary nav */}
@@ -116,11 +76,21 @@ function NavItem({
   return (
     <Link
       href={href}
-      className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors"
+      className="flex items-center gap-2.5 py-2 rounded-md text-sm transition-colors"
       style={
         active
-          ? { background: 'var(--accent)', color: '#fff' }
-          : { color: 'var(--sidebar-text2)' }
+          ? {
+              paddingLeft: 9,
+              paddingRight: 12,
+              borderLeft: '3px solid var(--accent)',
+              color: 'var(--accent)',
+              background: 'rgba(255,255,255,0.06)',
+            }
+          : {
+              paddingLeft: 12,
+              paddingRight: 12,
+              color: 'var(--sidebar-text2)',
+            }
       }
       onMouseEnter={(e) => {
         if (!active) {
