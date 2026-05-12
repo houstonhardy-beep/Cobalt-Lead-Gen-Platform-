@@ -33,7 +33,7 @@ const EDGE_WIDTHS = [1.0, 0.88, 0.76, 0.64, 0.52, 0.42, 0.34, 0.28, 0.20]
 const VB_W    = 400
 const VB_CX   = VB_W / 2
 const MAX_HALF = 178   // half-width of widest stage in viewBox units
-const STAGE_H  = 33   // trapezoid height in px (1:1 with viewBox y)
+const STAGE_H  = 27   // trapezoid height in px (1:1 with viewBox y)
 const GAP      = 3    // gap between trapezoids in px
 
 // Fixed SVG height: always 8 stages

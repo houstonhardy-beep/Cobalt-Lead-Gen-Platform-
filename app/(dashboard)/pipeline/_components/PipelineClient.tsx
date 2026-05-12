@@ -407,21 +407,6 @@ export function PipelineClient({
   const filteredWeighted     = filtered.reduce((s, r) => s + (r.weightedValue ?? 0), 0)
   const thisMonthLabel       = new Date().toLocaleDateString('en-US', { month: 'short' })
 
-  const stageSummary = useMemo(() => {
-    const map = new Map<string, { count: number; value: number }>()
-    for (const r of filtered) {
-      const key = r.stage ?? 'UNKNOWN'
-      const cur = map.get(key) ?? { count: 0, value: 0 }
-      map.set(key, { count: cur.count + 1, value: cur.value + (r.estimatedRevenue ?? 0) })
-    }
-    return STAGE_ORDER.filter((s) => map.has(s)).map((s) => ({
-      stage: s,
-      count: map.get(s)!.count,
-      value: map.get(s)!.value,
-      meta:  STAGE_META[s] ?? { label: s, color: '#94a3b8' },
-    }))
-  }, [filtered])
-
   const anyFilter = search !== '' || filterRep !== 'all' || filterStage !== 'all' ||
     filterJobType !== 'all' || filterProductCategory !== 'all' ||
     filterLeadSource !== 'all' || filterDateRange !== 'all'
@@ -471,7 +456,7 @@ export function PipelineClient({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <KpiCard
             label={
               targetPeriod === 'monthly'   ? `Team — ${thisMonthLabel}` :
@@ -522,11 +507,11 @@ export function PipelineClient({
             </select>
           </div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, alignItems: 'stretch' }}>
-          <div style={{ padding: '16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+          <div style={{ height: 340, padding: '16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)', overflow: 'hidden' }}>
             <PipelineFunnelSnapshot rows={funnelRows} />
           </div>
-          <div style={{ padding: '16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)', minHeight: 260 }}>
+          <div style={{ height: 340, padding: '16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)' }}>
             <PipelineTrendChart
               chartData={chartData}
               quarterChartData={quarterChartData}
@@ -539,34 +524,6 @@ export function PipelineClient({
           </div>
         </div>
       </div>
-
-      {/* Stage summary bar */}
-      {stageSummary.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {stageSummary.map(({ stage, count, value, meta }) => (
-            <button
-              key={stage}
-              onClick={() => setFilterStage(filterStage === stage ? 'all' : stage)}
-              style={{
-                display: 'flex', flexDirection: 'column', gap: 2,
-                padding: '6px 12px', borderRadius: 8,
-                border: `1px solid ${filterStage === stage ? meta.color : 'var(--bg4)'}`,
-                background: filterStage === stage ? `${meta.color}1a` : 'var(--bg2)',
-                cursor: 'pointer', textAlign: 'left',
-                transition: 'border-color 0.1s, background 0.1s',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{meta.label}</span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', paddingLeft: 14 }}>
-                {count} · {fmt$(value)}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Filter bar */}
       <div style={{ padding: '14px 16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)', display: 'flex', flexDirection: 'column', gap: 14 }}>

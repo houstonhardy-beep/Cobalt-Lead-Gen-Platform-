@@ -554,6 +554,30 @@ async function main() {
     }}),
   ])
 
+  // Alex Carter's (lekAdmin) opportunities — gives her weighted pipeline against her targets
+  await Promise.all([
+    db.opportunity.create({ data: {
+      tenantId: lek.id, leadId: gulfShores.id,
+      title: 'Gulf Shores Convention Center — Security & AV System',
+      type: 'BID', source: 'MANUAL', status: 'OPEN',
+      productCategory: 'INTEGRATED_SYSTEMS', jobType: 'NEW_CONSTRUCTION', leadSource: 'DODGE_DATA',
+      estimatedRevenue: 195000, weightedValue: 19500, probabilityPercent: 10,
+      stage: 'SIGNAL', stageChangedAt: new Date('2026-05-01'),
+      expectedCloseDate: new Date('2026-10-01'),
+      createdAt: new Date('2026-05-01'),
+    }}),
+    db.opportunity.create({ data: {
+      tenantId: lek.id, leadId: tuscaloosaCounty.id,
+      title: 'Tuscaloosa County Judicial Complex — Security Upgrade',
+      type: 'BID', source: 'MANUAL', status: 'OPEN',
+      productCategory: 'ACCESS_CONTROL', jobType: 'UPGRADE_REFRESH', leadSource: 'RFP_BID_BOARD',
+      estimatedRevenue: 160000, weightedValue: 32000, probabilityPercent: 20,
+      stage: 'PROSPECT', stageChangedAt: new Date('2026-05-05'),
+      expectedCloseDate: new Date('2026-09-01'),
+      createdAt: new Date('2026-05-05'),
+    }}),
+  ])
+
   // Backdate updatedAt so bookings land in the correct report period
   // Current period (May 1–7): Prattville + Montgomery Dental = $280K
   // Previous period (Apr 25–May 1): Birmingham Airport = $95K → ratio 2.9x alert fires
@@ -561,7 +585,7 @@ async function main() {
   await db.$executeRaw`UPDATE "Opportunity" SET "updatedAt" = ${'2026-05-04T11:30:00Z'} WHERE id = ${oppMontgomeryDental.id}`
   await db.$executeRaw`UPDATE "Opportunity" SET "updatedAt" = ${'2026-04-28T16:45:00Z'} WHERE id = ${oppBirminghamAirport.id}`
 
-  console.log('  ✓ Opportunities created (13)')
+  console.log('  ✓ Opportunities created (15)')
 
   // ── Stage History ──────────────────────────────────────────────────────────────
   // 8 records: 4 current period (May 1–7) + 4 previous period (Apr 25–May 1)
