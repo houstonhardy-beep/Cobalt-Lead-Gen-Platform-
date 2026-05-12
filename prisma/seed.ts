@@ -76,6 +76,7 @@ async function main() {
   console.log('  ✓ Users upserted')
 
   // ── Wipe existing LEK data (in FK-safe order) ─────────────────────────────────
+  await db.pipelineTarget.deleteMany({ where: { tenantId: lek.id } })
   await db.outreachLog.deleteMany({ where: { tenantId: lek.id } })
   await db.opportunity.deleteMany({ where: { tenantId: lek.id } })   // cascades → stageHistory, opportunityProduct
   await db.note.deleteMany({ where: { tenantId: lek.id } })
@@ -681,6 +682,30 @@ async function main() {
     db.leadLog.create({ data: { leadId, userId, action, date } })
   ))
   console.log(`  ✓ Lead logs created (${leadLogs.length})`)
+
+  // ── Pipeline Targets ──────────────────────────────────────────────────────────
+
+  await Promise.all([
+    // ── Team annual ──────────────────────────────────────────────────────────
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: null, stage: null, period: '2026',    periodType: 'ANNUAL',    targetValue: 2_000_000 } }),
+    // ── Team quarterly ────────────────────────────────────────────────────────
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: null, stage: null, period: '2026-Q2', periodType: 'QUARTERLY', targetValue:   500_000 } }),
+    // ── Team monthly ─────────────────────────────────────────────────────────
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: null, stage: null, period: '2026-05', periodType: 'MONTHLY',   targetValue:   165_000 } }),
+    // ── Team stage targets (Q2) ──────────────────────────────────────────────
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: null, stage: 'PROPOSAL',  period: '2026-Q2', periodType: 'QUARTERLY', targetValue: 800_000 } }),
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: null, stage: 'QUALIFIED', period: '2026-Q2', periodType: 'QUARTERLY', targetValue: 400_000 } }),
+    // ── Rep annual ───────────────────────────────────────────────────────────
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: lekAdmin.id, stage: null, period: '2026',    periodType: 'ANNUAL',    targetValue:   800_000 } }),
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: lekRep.id,   stage: null, period: '2026',    periodType: 'ANNUAL',    targetValue: 1_200_000 } }),
+    // ── Rep quarterly ────────────────────────────────────────────────────────
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: lekAdmin.id, stage: null, period: '2026-Q2', periodType: 'QUARTERLY', targetValue: 200_000 } }),
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: lekRep.id,   stage: null, period: '2026-Q2', periodType: 'QUARTERLY', targetValue: 300_000 } }),
+    // ── Rep monthly ──────────────────────────────────────────────────────────
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: lekAdmin.id, stage: null, period: '2026-05', periodType: 'MONTHLY',   targetValue:  65_000 } }),
+    db.pipelineTarget.create({ data: { tenantId: lek.id, userId: lekRep.id,   stage: null, period: '2026-05', periodType: 'MONTHLY',   targetValue: 100_000 } }),
+  ])
+  console.log('  ✓ Pipeline targets created (12)')
 
   console.log('\nSeed complete.')
   console.log('\nDev credentials (rotate before staging/prod):')

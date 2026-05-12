@@ -3,7 +3,10 @@
 import { useState, useMemo, useEffect } from 'react'
 import { OppDrawer } from './OppDrawer'
 import { PipelineChart } from './PipelineChart'
+import { ConversionFunnel } from './ConversionFunnel'
 import type { ChartDataPoint } from './PipelineChart'
+import type { ConversionStage } from './ConversionFunnel'
+import { CHART_STAGE_ORDER } from './constants'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +30,15 @@ export interface PipelineRow {
   needsAttention: boolean
   createdAtMs: number
   updatedAtMs: number
+}
+
+interface RepTargetCard {
+  repId: string
+  repName: string
+  annual: number | null
+  quarterly: number | null
+  monthly: number | null
+  weighted: number
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -174,9 +186,9 @@ function SelectControl({
 
 // ─── KpiCard ──────────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, target }: { label: string; value: number; target: number | null }) {
+function KpiCard({ label, value, target, subtitle }: { label: string; value: number; target: number | null; subtitle?: string }) {
   const pct     = target ? Math.min(100, Math.round((value / target) * 100)) : null
-  const onTrack = pct !== null && pct >= 80
+  const color   = pct === null ? '#94a3b8' : pct >= 80 ? '#34d399' : pct >= 50 ? '#fbbf24' : '#f87171'
 
   return (
     <div style={{ padding: '14px 16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)' }}>
@@ -189,17 +201,12 @@ function KpiCard({ label, value, target }: { label: string; value: number; targe
       {target !== null ? (
         <>
           <div style={{ height: 4, borderRadius: 2, background: 'var(--bg4)', overflow: 'hidden', marginBottom: 6 }}>
-            <div style={{
-              height: '100%',
-              width: `${pct}%`,
-              borderRadius: 2,
-              background: onTrack ? '#34d399' : pct !== null && pct >= 50 ? '#fbbf24' : '#f87171',
-              transition: 'width 0.3s',
-            }} />
+            <div style={{ height: '100%', width: `${pct}%`, borderRadius: 2, background: color, transition: 'width 0.3s' }} />
           </div>
           <p style={{ fontSize: 11, color: 'var(--text3)', margin: 0 }}>
-            <span style={{ color: onTrack ? '#34d399' : 'var(--text2)', fontWeight: 600 }}>{pct}%</span>
+            <span style={{ color, fontWeight: 600 }}>{pct}%</span>
             {' of '}{fmt$(target)} target
+            {subtitle && <span> · {subtitle}</span>}
           </p>
         </>
       ) : (
@@ -239,21 +246,13 @@ function OppRow({ row, onSelect }: { row: PipelineRow; onSelect: () => void }) {
         transition: 'background 0.1s',
       }}
     >
-      {/* Opportunity title + company */}
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            fontSize: 13, fontWeight: 600, color: 'var(--text)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {row.title}
           </span>
           {row.needsAttention && (
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, flexShrink: 0,
-              background: 'rgba(251,191,36,0.12)', color: '#fbbf24',
-              border: '1px solid rgba(251,191,36,0.3)',
-            }}>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, flexShrink: 0, background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
               Needs Attention
             </span>
           )}
@@ -262,87 +261,74 @@ function OppRow({ row, onSelect }: { row: PipelineRow; onSelect: () => void }) {
           {row.company}
         </div>
       </div>
-
-      {/* Stage badge */}
       <div>
-        <span style={{
-          fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 4,
-          background: `${stageMeta.color}22`, color: stageMeta.color,
-          border: `1px solid ${stageMeta.color}44`,
-          whiteSpace: 'nowrap',
-        }}>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 4, background: `${stageMeta.color}22`, color: stageMeta.color, border: `1px solid ${stageMeta.color}44`, whiteSpace: 'nowrap' }}>
           {stageMeta.label}
         </span>
       </div>
-
-      {/* Rep */}
-      <div style={{ fontSize: 12, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {row.repName ?? '—'}
-      </div>
-
-      {/* Job Type */}
-      <div style={{ fontSize: 12, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {row.jobType ? (JOB_TYPE_LABEL[row.jobType] ?? row.jobType) : '—'}
-      </div>
-
-      {/* Product Category */}
-      <div style={{ fontSize: 12, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {row.productCategory ? (PRODUCT_CATEGORY_LABEL[row.productCategory] ?? row.productCategory) : '—'}
-      </div>
-
-      {/* Days in stage */}
-      <div style={{ fontSize: 12, color: row.daysInStage > 45 ? '#fbbf24' : 'var(--text2)', fontVariantNumeric: 'tabular-nums' }}>
-        {row.daysInStage}d
-      </div>
-
-      {/* Days in pipeline */}
-      <div style={{ fontSize: 12, color: 'var(--text2)', fontVariantNumeric: 'tabular-nums' }}>
-        {row.daysInPipeline}d
-      </div>
-
-      {/* Estimated revenue */}
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-        {fmt$(row.estimatedRevenue)}
-      </div>
-
-      {/* Weighted value */}
-      <div style={{ fontSize: 12, color: 'var(--text3)', fontVariantNumeric: 'tabular-nums' }}>
-        {fmt$(row.weightedValue)}
-      </div>
+      <div style={{ fontSize: 12, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.repName ?? '—'}</div>
+      <div style={{ fontSize: 12, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.jobType ? (JOB_TYPE_LABEL[row.jobType] ?? row.jobType) : '—'}</div>
+      <div style={{ fontSize: 12, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.productCategory ? (PRODUCT_CATEGORY_LABEL[row.productCategory] ?? row.productCategory) : '—'}</div>
+      <div style={{ fontSize: 12, color: row.daysInStage > 45 ? '#fbbf24' : 'var(--text2)', fontVariantNumeric: 'tabular-nums' }}>{row.daysInStage}d</div>
+      <div style={{ fontSize: 12, color: 'var(--text2)', fontVariantNumeric: 'tabular-nums' }}>{row.daysInPipeline}d</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt$(row.estimatedRevenue)}</div>
+      <div style={{ fontSize: 12, color: 'var(--text3)', fontVariantNumeric: 'tabular-nums' }}>{fmt$(row.weightedValue)}</div>
     </div>
   )
 }
 
 // ─── PipelineClient ───────────────────────────────────────────────────────────
 
-interface PipelineTargets {
-  weightedPipelineTarget: number | null
-  monthlyAddsTarget: number | null
-}
-
 export function PipelineClient({
   rows,
   chartData,
+  quarterChartData,
+  annualChartData,
+  repChartData,
+  repQuarterChartData,
+  repAnnualChartData,
+  chartReps,
   activeStages,
-  targets,
+  annualTeamTarget,
+  quarterlyTeamTarget,
+  monthlyTeamTarget,
+  repTargetCards,
   thisMonthAdds,
+  conversionData,
 }: {
   rows: PipelineRow[]
   chartData: ChartDataPoint[]
+  quarterChartData: ChartDataPoint[]
+  annualChartData: ChartDataPoint[]
+  repChartData: Record<string, ChartDataPoint[]>
+  repQuarterChartData: Record<string, ChartDataPoint[]>
+  repAnnualChartData: Record<string, ChartDataPoint[]>
+  chartReps: { id: string; name: string }[]
   activeStages: string[]
-  targets: PipelineTargets
+  annualTeamTarget: number | null
+  quarterlyTeamTarget: number | null
+  monthlyTeamTarget: number | null
+  repTargetCards: RepTargetCard[]
   thisMonthAdds: number
+  conversionData: ConversionStage[]
 }) {
-  const [liveRows, setLiveRows]                         = useState<PipelineRow[]>(rows)
-  const [selectedId, setSelectedId]                     = useState<string | null>(null)
-  const [search, setSearch]                             = useState('')
-  const [filterRep, setFilterRep]                       = useState('all')
-  const [filterStage, setFilterStage]                   = useState('all')
-  const [filterJobType, setFilterJobType]               = useState('all')
+  const [liveRows, setLiveRows]                           = useState<PipelineRow[]>(rows)
+  const [selectedId, setSelectedId]                       = useState<string | null>(null)
+
+  // List filters
+  const [search, setSearch]                               = useState('')
+  const [filterRep, setFilterRep]                         = useState('all')
+  const [filterStage, setFilterStage]                     = useState('all')
+  const [filterJobType, setFilterJobType]                 = useState('all')
   const [filterProductCategory, setFilterProductCategory] = useState('all')
-  const [filterLeadSource, setFilterLeadSource]         = useState('all')
-  const [filterDateRange, setFilterDateRange]           = useState('all')
-  const [sort, setSort]                                 = useState('value')
+  const [filterLeadSource, setFilterLeadSource]           = useState('all')
+  const [filterDateRange, setFilterDateRange]             = useState('all')
+  const [sort, setSort]                                   = useState('value')
+
+  // Chart-specific filters (independent of list)
+  const [chartRep, setChartRep]       = useState('all')
+  const [chartPeriod, setChartPeriod] = useState<'monthly' | 'quarterly' | 'annual'>('monthly')
+  const [chartStages, setChartStages] = useState<string[]>([]) // empty = all
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setSelectedId(null) }
@@ -354,7 +340,29 @@ export function PipelineClient({
     setLiveRows((prev) => prev.map((r) => r.id === id ? { ...r, ...patch } : r))
   }
 
-  // ── Filter option lists derived from data ──────────────────────────────────
+  // ── Chart data resolution ──────────────────────────────────────────────────
+
+  const resolvedChartData = useMemo(() => {
+    if (chartPeriod === 'quarterly') return chartRep !== 'all' ? (repQuarterChartData[chartRep] ?? quarterChartData) : quarterChartData
+    if (chartPeriod === 'annual')    return chartRep !== 'all' ? (repAnnualChartData[chartRep]  ?? annualChartData)  : annualChartData
+    return chartRep !== 'all' ? (repChartData[chartRep] ?? chartData) : chartData
+  }, [chartRep, chartPeriod, chartData, quarterChartData, annualChartData, repChartData, repQuarterChartData, repAnnualChartData])
+
+  const resolvedActiveStages = useMemo(() => {
+    const base = CHART_STAGE_ORDER.filter((s) =>
+      resolvedChartData.some((d) => (d.stages[s] ?? 0) > 0)
+    )
+    if (chartStages.length === 0) return base
+    return base.filter((s) => chartStages.includes(s))
+  }, [resolvedChartData, chartStages])
+
+  function toggleChartStage(stage: string) {
+    setChartStages((prev) =>
+      prev.includes(stage) ? prev.filter((s) => s !== stage) : [...prev, stage]
+    )
+  }
+
+  // ── Filter option lists ────────────────────────────────────────────────────
 
   const repOptions = useMemo(() => {
     const seen = new Map<string, string>()
@@ -421,7 +429,7 @@ export function PipelineClient({
 
   // ── Derived totals ─────────────────────────────────────────────────────────
 
-  const allTotal            = liveRows.reduce((s, r) => s + (r.estimatedRevenue ?? 0), 0)
+  const allTotal             = liveRows.reduce((s, r) => s + (r.estimatedRevenue ?? 0), 0)
   const currentWeightedTotal = liveRows.reduce((s, r) => s + (r.weightedValue ?? 0), 0)
   const filteredTotal        = filtered.reduce((s, r) => s + (r.estimatedRevenue ?? 0), 0)
   const filteredWeighted     = filtered.reduce((s, r) => s + (r.weightedValue ?? 0), 0)
@@ -447,14 +455,16 @@ export function PipelineClient({
     filterLeadSource !== 'all' || filterDateRange !== 'all'
 
   function clearFilters() {
-    setSearch('')
-    setFilterRep('all')
-    setFilterStage('all')
-    setFilterJobType('all')
-    setFilterProductCategory('all')
-    setFilterLeadSource('all')
-    setFilterDateRange('all')
+    setSearch(''); setFilterRep('all'); setFilterStage('all')
+    setFilterJobType('all'); setFilterProductCategory('all')
+    setFilterLeadSource('all'); setFilterDateRange('all')
   }
+
+  // All available stages for chart stage filter
+  const chartStageOptions = useMemo(() =>
+    CHART_STAGE_ORDER.filter((s) => activeStages.includes(s)),
+    [activeStages]
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -467,44 +477,131 @@ export function PipelineClient({
         </p>
       </div>
 
-      {/* Target KPI cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <KpiCard
-          label="Weighted Pipeline"
-          value={currentWeightedTotal}
-          target={targets.weightedPipelineTarget}
-        />
-        <KpiCard
-          label={`Monthly Adds (${thisMonthLabel})`}
-          value={thisMonthAdds}
-          target={targets.monthlyAddsTarget}
-        />
+      {/* Team target KPI cards — Monthly · Quarterly · Annual */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+        <KpiCard label={`Weighted Pipeline — ${thisMonthLabel}`} value={currentWeightedTotal} target={monthlyTeamTarget}   subtitle="monthly target" />
+        <KpiCard label="Weighted Pipeline — This Quarter"        value={currentWeightedTotal} target={quarterlyTeamTarget} subtitle="quarterly target" />
+        <KpiCard label="Weighted Pipeline — This Year"           value={currentWeightedTotal} target={annualTeamTarget}    subtitle="annual target" />
       </div>
 
-      {/* Stacked bar chart */}
+      {/* Rep target cards */}
+      {repTargetCards.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {repTargetCards.map((rt) => (
+            <div key={rt.repId} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              <KpiCard label={`${rt.repName} — ${thisMonthLabel}`}  value={rt.weighted} target={rt.monthly}   subtitle="rep monthly" />
+              <KpiCard label={`${rt.repName} — This Quarter`}       value={rt.weighted} target={rt.quarterly} subtitle="rep quarterly" />
+              <KpiCard label={`${rt.repName} — This Year`}          value={rt.weighted} target={rt.annual}    subtitle="rep annual" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Stacked bar chart with filters */}
       {chartData.length > 0 && (
         <div style={{ padding: '16px 16px 8px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)', marginBottom: 12 }}>
-            Pipeline by Stage — Last 6 Months
-          </p>
-          <PipelineChart data={chartData} activeStages={activeStages} />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 10 }}>
-            {activeStages.map((s) => {
-              const meta = STAGE_META[s] ?? { label: s, color: '#94a3b8' }
-              return (
-                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: meta.color, flexShrink: 0, display: 'inline-block' }} />
-                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>{meta.label}</span>
-                </div>
-              )
-            })}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#60a5fa" strokeWidth="1.5" strokeDasharray="5 3" /></svg>
-              <span style={{ fontSize: 11, color: 'var(--text3)' }}>Trend</span>
+          {/* Chart header + filters */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)', margin: 0 }}>
+              Pipeline by Stage —{' '}
+              {chartPeriod === 'monthly' ? 'Last 6 Months' : chartPeriod === 'quarterly' ? 'Last 4 Quarters' : 'Last 3 Years'}
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* Period toggle */}
+              <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--bg4)' }}>
+                {([
+                  ['monthly',   'Monthly'],
+                  ['quarterly', 'Quarterly'],
+                  ['annual',    'Annual'],
+                ] as const).map(([p, label]) => (
+                  <button
+                    key={p}
+                    onClick={() => setChartPeriod(p)}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: 'none',
+                      background: chartPeriod === p ? 'var(--cobalt)' : 'var(--bg3)',
+                      color: chartPeriod === p ? '#fff' : 'var(--text3)',
+                      transition: 'background 0.1s',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {/* Rep filter */}
+              {chartReps.length > 2 && (
+                <select
+                  value={chartRep}
+                  onChange={(e) => setChartRep(e.target.value)}
+                  style={{
+                    fontSize: 11,
+                    background: 'var(--bg3)',
+                    border: '1px solid var(--bg4)',
+                    borderRadius: 6,
+                    color: 'var(--text)',
+                    padding: '4px 8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {chartReps.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+
+          <PipelineChart data={resolvedChartData} activeStages={resolvedActiveStages} />
+
+          {/* Stage legend + stage filter chips */}
+          <div style={{ marginTop: 10 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px' }}>
+              {chartStageOptions.map((s) => {
+                const meta     = STAGE_META[s] ?? { label: s, color: '#94a3b8' }
+                const selected = chartStages.length === 0 || chartStages.includes(s)
+                return (
+                  <button
+                    key={s}
+                    onClick={() => toggleChartStage(s)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      border: `1px solid ${selected ? meta.color + '60' : 'var(--bg4)'}`,
+                      background: selected ? meta.color + '18' : 'transparent',
+                      cursor: 'pointer',
+                      opacity: selected ? 1 : 0.45,
+                      transition: 'opacity 0.1s, border-color 0.1s',
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: 2, background: meta.color, flexShrink: 0, display: 'inline-block' }} />
+                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>{meta.label}</span>
+                  </button>
+                )
+              })}
+              {chartStages.length > 0 && (
+                <button
+                  onClick={() => setChartStages([])}
+                  style={{ fontSize: 11, color: 'var(--text3)', cursor: 'pointer', padding: '2px 0', background: 'none', border: 'none', textDecoration: 'underline' }}
+                >
+                  Show all
+                </button>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 4 }}>
+                <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#60a5fa" strokeWidth="1.5" strokeDasharray="5 3" /></svg>
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>Trend</span>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Conversion funnel */}
+      {conversionData.length > 0 && <ConversionFunnel data={conversionData} />}
 
       {/* Stage summary bar */}
       {stageSummary.length > 0 && (
@@ -550,23 +647,13 @@ export function PipelineClient({
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)' }}>
-              Search
-            </label>
+            <label style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)' }}>Search</label>
             <input
               type="text"
               placeholder="Opportunity or company…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{
-                fontSize: 13,
-                background: 'var(--bg3)',
-                border: '1px solid var(--bg4)',
-                borderRadius: 6,
-                color: 'var(--text)',
-                padding: '5px 10px',
-                outline: 'none',
-              }}
+              style={{ fontSize: 13, background: 'var(--bg3)', border: '1px solid var(--bg4)', borderRadius: 6, color: 'var(--text)', padding: '5px 10px', outline: 'none' }}
             />
           </div>
           <SelectControl label="Sort by" value={sort} onChange={setSort} options={SORT_OPTIONS} />
@@ -584,18 +671,11 @@ export function PipelineClient({
       {/* Results summary */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <p style={{ fontSize: 13, color: 'var(--text3)', margin: 0 }}>
-          {filtered.length} {filtered.length === 1 ? 'opportunity' : 'opportunities'}
-          {anyFilter ? ' matching filters' : ''}
+          {filtered.length} {filtered.length === 1 ? 'opportunity' : 'opportunities'}{anyFilter ? ' matching filters' : ''}
         </p>
         <div style={{ display: 'flex', gap: 20, fontSize: 13 }}>
-          <span style={{ color: 'var(--text3)' }}>
-            Est. value:{' '}
-            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{fmt$(filteredTotal)}</span>
-          </span>
-          <span style={{ color: 'var(--text3)' }}>
-            Weighted:{' '}
-            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{fmt$(filteredWeighted)}</span>
-          </span>
+          <span style={{ color: 'var(--text3)' }}>Est. value: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{fmt$(filteredTotal)}</span></span>
+          <span style={{ color: 'var(--text3)' }}>Weighted: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{fmt$(filteredWeighted)}</span></span>
         </div>
       </div>
 
@@ -606,32 +686,16 @@ export function PipelineClient({
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {/* Column headers */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: COLS,
-            gap: '0 12px',
-            padding: '6px 14px',
-            borderRadius: 6,
-            background: 'var(--bg2)',
-            border: '1px solid transparent',
-          }}>
+          <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: '0 12px', padding: '6px 14px', borderRadius: 6, background: 'var(--bg2)', border: '1px solid transparent' }}>
             {COL_HEADERS.map((h) => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text3)' }}>
-                {h}
-              </span>
+              <span key={h} style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text3)' }}>{h}</span>
             ))}
           </div>
-
           {filtered.map((row) => <OppRow key={row.id} row={row} onSelect={() => setSelectedId(row.id)} />)}
         </div>
       )}
 
-      <OppDrawer
-        oppId={selectedId}
-        onClose={() => setSelectedId(null)}
-        onRowPatch={patchRow}
-      />
+      <OppDrawer oppId={selectedId} onClose={() => setSelectedId(null)} onRowPatch={patchRow} />
     </div>
   )
 }

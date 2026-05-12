@@ -162,6 +162,12 @@ enum AcquisitionSource {
   EXISTING_RELATIONSHIP
 }
 
+enum PeriodType {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
 // ─── TENANT ──────────────────────────────────────────────────────────────────
 
 model Tenant {
@@ -184,6 +190,7 @@ model Tenant {
   productTypes       ProductType[]
   stageHistory       StageHistory[]
   customerLocations  CustomerLocation[]
+  pipelineTargets    PipelineTarget[]
 
   @@index([slug])
 }
@@ -205,14 +212,15 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  tenant       Tenant?       @relation(fields: [tenantId], references: [id])
-  accounts     Account[]
-  sessions     Session[]
-  leads        Lead[]        @relation("AssignedLeads")
-  leadLogs     LeadLog[]
-  notes        Note[]
-  outreachLog  OutreachLog[]
-  stageHistory StageHistory[]
+  tenant          Tenant?          @relation(fields: [tenantId], references: [id])
+  accounts        Account[]
+  sessions        Session[]
+  leads           Lead[]           @relation("AssignedLeads")
+  leadLogs        LeadLog[]
+  notes           Note[]
+  outreachLog     OutreachLog[]
+  stageHistory    StageHistory[]
+  pipelineTargets PipelineTarget[]
 
   @@index([tenantId])
   @@index([email])
@@ -572,4 +580,28 @@ model CustomerLocation {
 
   @@index([tenantId])
   @@index([customerId])
+}
+
+// ─── PIPELINE TARGETS ─────────────────────────────────────────────────────────
+// Stores dollar targets at team or rep level, optionally scoped to a stage.
+// period examples: "2026", "2026-Q2", "2026-06"
+
+model PipelineTarget {
+  id          String     @id @default(cuid())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  tenantId    String
+  userId      String?    // null = team-level; set = rep-level
+  stage       LeadStage? // null = total pipeline; set = stage-specific
+  period      String     // e.g. "2026", "2026-Q2", "2026-06"
+  periodType  PeriodType
+  targetValue Float
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, period])
+  @@index([userId])
 }
