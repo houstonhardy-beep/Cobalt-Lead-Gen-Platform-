@@ -59,17 +59,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
       })
     : 0
 
+  const accentColor = branding.tenantAccentColor ?? branding.primaryColor
+
   return (
     <TenantProvider value={{ id: tenantId, slug: tenantSlug, name: tenantName, branding, config }}>
-      <style>{`
-        :root {
-          --brand:  ${branding.primaryColor};
-          --accent: ${branding.tenantAccentColor ?? branding.primaryColor};
-          ${branding.accentColor ? `--brand-accent: ${branding.accentColor};` : ''}
-        }
-      `}</style>
-
-      <div className="flex h-full">
+      <div
+        className="flex h-full"
+        style={{
+          '--accent': accentColor,
+          '--brand':  branding.primaryColor,
+        } as React.CSSProperties}
+      >
         <Sidebar />
 
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">

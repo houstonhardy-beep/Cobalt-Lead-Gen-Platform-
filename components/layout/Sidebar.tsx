@@ -80,9 +80,9 @@ function NavItem({
       style={
         active
           ? {
-              paddingLeft: 9,
+              paddingLeft: 8,
               paddingRight: 12,
-              borderLeft: '3px solid var(--accent)',
+              borderLeft: '4px solid var(--accent)',
               color: 'var(--accent)',
               background: 'rgba(255,255,255,0.06)',
             }
