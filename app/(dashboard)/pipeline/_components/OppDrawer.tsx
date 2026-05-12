@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { PipelineRow } from './PipelineClient'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -373,6 +373,20 @@ function DrawerBody({
   onClose, onStageChange, onActTypeChange, onActDescChange, onActDateChange, onLogActivity,
 }: DrawerBodyProps) {
   const needsAttention = detail.daysInStage > 45
+  const [pendingStage, setPendingStage] = useState(detail.stage ?? '')
+  const [stageSaved, setStageSaved]     = useState(false)
+  const prevChanging = useRef(false)
+
+  useEffect(() => { setPendingStage(detail.stage ?? '') }, [detail.stage])
+
+  useEffect(() => {
+    if (prevChanging.current && !stageChanging) {
+      setStageSaved(true)
+      const t = setTimeout(() => setStageSaved(false), 2500)
+      return () => clearTimeout(t)
+    }
+    prevChanging.current = stageChanging
+  }, [stageChanging])
 
   const sel: React.CSSProperties = {
     fontSize: 13,
@@ -431,8 +445,8 @@ function DrawerBody({
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 11, color: 'var(--text3)' }}>Move to:</span>
               <select
-                value={detail.stage ?? ''}
-                onChange={(e) => onStageChange(e.target.value)}
+                value={pendingStage}
+                onChange={(e) => { setPendingStage(e.target.value); setStageSaved(false) }}
                 disabled={stageChanging}
                 style={{ ...sel, opacity: stageChanging ? 0.6 : 1 }}
               >
@@ -440,6 +454,20 @@ function DrawerBody({
                   <option key={s} value={s}>{STAGE_META[s]?.label ?? s}</option>
                 ))}
               </select>
+              {pendingStage !== (detail.stage ?? '') && !stageChanging && (
+                <button
+                  onClick={() => onStageChange(pendingStage)}
+                  style={{
+                    fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
+                    border: 'none', background: 'var(--cobalt)', color: '#fff', cursor: 'pointer',
+                  }}
+                >
+                  Update Stage
+                </button>
+              )}
+              {stageSaved && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#34d399' }}>✓ Saved</span>
+              )}
             </div>
           </div>
 

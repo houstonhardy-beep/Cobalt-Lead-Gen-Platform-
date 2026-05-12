@@ -2,11 +2,9 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { OppDrawer } from './OppDrawer'
-import { PipelineChart } from './PipelineChart'
-import { ConversionFunnel } from './ConversionFunnel'
+import { PipelineTrendChart } from './PipelineChart'
+import { PipelineFunnelSnapshot } from './PipelineFunnelSnapshot'
 import type { ChartDataPoint } from './PipelineChart'
-import type { ConversionStage } from './ConversionFunnel'
-import { CHART_STAGE_ORDER } from './constants'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -186,9 +184,9 @@ function SelectControl({
 
 // ─── KpiCard ──────────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, target, subtitle }: { label: string; value: number; target: number | null; subtitle?: string }) {
-  const pct     = target ? Math.min(100, Math.round((value / target) * 100)) : null
-  const color   = pct === null ? '#94a3b8' : pct >= 80 ? '#34d399' : pct >= 50 ? '#fbbf24' : '#f87171'
+function KpiCard({ label, value, target }: { label: string; value: number; target: number | null }) {
+  const pct   = target ? Math.min(100, Math.round((value / target) * 100)) : null
+  const color = pct === null ? '#94a3b8' : pct >= 80 ? '#34d399' : pct >= 50 ? '#fbbf24' : '#f87171'
 
   return (
     <div style={{ padding: '14px 16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)' }}>
@@ -206,7 +204,6 @@ function KpiCard({ label, value, target, subtitle }: { label: string; value: num
           <p style={{ fontSize: 11, color: 'var(--text3)', margin: 0 }}>
             <span style={{ color, fontWeight: 600 }}>{pct}%</span>
             {' of '}{fmt$(target)} target
-            {subtitle && <span> · {subtitle}</span>}
           </p>
         </>
       ) : (
@@ -283,37 +280,27 @@ export function PipelineClient({
   rows,
   chartData,
   quarterChartData,
-  annualChartData,
   repChartData,
   repQuarterChartData,
-  repAnnualChartData,
   chartReps,
-  activeStages,
   annualTeamTarget,
   quarterlyTeamTarget,
   monthlyTeamTarget,
   repTargetCards,
-  thisMonthAdds,
-  conversionData,
 }: {
   rows: PipelineRow[]
   chartData: ChartDataPoint[]
   quarterChartData: ChartDataPoint[]
-  annualChartData: ChartDataPoint[]
   repChartData: Record<string, ChartDataPoint[]>
   repQuarterChartData: Record<string, ChartDataPoint[]>
-  repAnnualChartData: Record<string, ChartDataPoint[]>
   chartReps: { id: string; name: string }[]
-  activeStages: string[]
   annualTeamTarget: number | null
   quarterlyTeamTarget: number | null
   monthlyTeamTarget: number | null
   repTargetCards: RepTargetCard[]
-  thisMonthAdds: number
-  conversionData: ConversionStage[]
 }) {
-  const [liveRows, setLiveRows]                           = useState<PipelineRow[]>(rows)
-  const [selectedId, setSelectedId]                       = useState<string | null>(null)
+  const [liveRows, setLiveRows] = useState<PipelineRow[]>(rows)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   // List filters
   const [search, setSearch]                               = useState('')
@@ -325,13 +312,11 @@ export function PipelineClient({
   const [filterDateRange, setFilterDateRange]             = useState('all')
   const [sort, setSort]                                   = useState('value')
 
-  // Target period toggle (independent of chart period)
+  // Target period toggle (independent of charts)
   const [targetPeriod, setTargetPeriod] = useState<'monthly' | 'quarterly' | 'annual'>('monthly')
 
-  // Chart-specific filters (independent of list)
-  const [chartRep, setChartRep]       = useState('all')
-  const [chartPeriod, setChartPeriod] = useState<'monthly' | 'quarterly' | 'annual'>('monthly')
-  const [chartStages, setChartStages] = useState<string[]>([]) // empty = all
+  // Shared chart rep filter (drives both snapshot + trend)
+  const [chartRep, setChartRep] = useState('all')
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setSelectedId(null) }
@@ -343,27 +328,11 @@ export function PipelineClient({
     setLiveRows((prev) => prev.map((r) => r.id === id ? { ...r, ...patch } : r))
   }
 
-  // ── Chart data resolution ──────────────────────────────────────────────────
-
-  const resolvedChartData = useMemo(() => {
-    if (chartPeriod === 'quarterly') return chartRep !== 'all' ? (repQuarterChartData[chartRep] ?? quarterChartData) : quarterChartData
-    if (chartPeriod === 'annual')    return chartRep !== 'all' ? (repAnnualChartData[chartRep]  ?? annualChartData)  : annualChartData
-    return chartRep !== 'all' ? (repChartData[chartRep] ?? chartData) : chartData
-  }, [chartRep, chartPeriod, chartData, quarterChartData, annualChartData, repChartData, repQuarterChartData, repAnnualChartData])
-
-  const resolvedActiveStages = useMemo(() => {
-    const base = CHART_STAGE_ORDER.filter((s) =>
-      resolvedChartData.some((d) => (d.stages[s] ?? 0) > 0)
-    )
-    if (chartStages.length === 0) return base
-    return base.filter((s) => chartStages.includes(s))
-  }, [resolvedChartData, chartStages])
-
-  function toggleChartStage(stage: string) {
-    setChartStages((prev) =>
-      prev.includes(stage) ? prev.filter((s) => s !== stage) : [...prev, stage]
-    )
-  }
+  // Rows filtered by chart rep for the funnel snapshot
+  const funnelRows = useMemo(() =>
+    chartRep === 'all' ? liveRows : liveRows.filter((r) => r.repId === chartRep),
+    [liveRows, chartRep]
+  )
 
   // ── Filter option lists ────────────────────────────────────────────────────
 
@@ -463,12 +432,6 @@ export function PipelineClient({
     setFilterLeadSource('all'); setFilterDateRange('all')
   }
 
-  // All available stages for chart stage filter
-  const chartStageOptions = useMemo(() =>
-    CHART_STAGE_ORDER.filter((s) => activeStages.includes(s)),
-    [activeStages]
-  )
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -482,7 +445,6 @@ export function PipelineClient({
 
       {/* Target KPI cards with period toggle */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)' }}>
             Targets
@@ -497,11 +459,7 @@ export function PipelineClient({
                 key={p}
                 onClick={() => setTargetPeriod(p)}
                 style={{
-                  padding: '3px 10px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  border: 'none',
+                  padding: '3px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none',
                   background: targetPeriod === p ? 'var(--cobalt)' : 'var(--bg3)',
                   color: targetPeriod === p ? '#fff' : 'var(--text3)',
                   transition: 'background 0.1s',
@@ -513,7 +471,6 @@ export function PipelineClient({
           </div>
         </div>
 
-        {/* Cards — one per entity for the selected period */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
           <KpiCard
             label={
@@ -547,111 +504,41 @@ export function PipelineClient({
         </div>
       </div>
 
-      {/* Stacked bar chart with filters */}
-      {chartData.length > 0 && (
-        <div style={{ padding: '16px 16px 8px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)' }}>
-          {/* Chart header + filters */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)', margin: 0 }}>
-              Pipeline by Stage —{' '}
-              {chartPeriod === 'monthly' ? 'Last 6 Months' : chartPeriod === 'quarterly' ? 'Last 4 Quarters' : 'Last 3 Years'}
-            </p>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              {/* Period toggle */}
-              <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--bg4)' }}>
-                {([
-                  ['monthly',   'Monthly'],
-                  ['quarterly', 'Quarterly'],
-                  ['annual',    'Annual'],
-                ] as const).map(([p, label]) => (
-                  <button
-                    key={p}
-                    onClick={() => setChartPeriod(p)}
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      border: 'none',
-                      background: chartPeriod === p ? 'var(--cobalt)' : 'var(--bg3)',
-                      color: chartPeriod === p ? '#fff' : 'var(--text3)',
-                      transition: 'background 0.1s',
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {/* Rep filter */}
-              {chartReps.length > 2 && (
-                <select
-                  value={chartRep}
-                  onChange={(e) => setChartRep(e.target.value)}
-                  style={{
-                    fontSize: 11,
-                    background: 'var(--bg3)',
-                    border: '1px solid var(--bg4)',
-                    borderRadius: 6,
-                    color: 'var(--text)',
-                    padding: '4px 8px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {chartReps.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
-              )}
-            </div>
+      {/* Side-by-side charts */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Shared rep filter */}
+        {chartReps.length > 2 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--text3)' }}>Rep:</span>
+            <select
+              value={chartRep}
+              onChange={(e) => setChartRep(e.target.value)}
+              style={{
+                fontSize: 11, background: 'var(--bg3)', border: '1px solid var(--bg4)',
+                borderRadius: 6, color: 'var(--text)', padding: '3px 8px', cursor: 'pointer',
+              }}
+            >
+              {chartReps.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
           </div>
-
-          <PipelineChart data={resolvedChartData} activeStages={resolvedActiveStages} />
-
-          {/* Stage legend + stage filter chips */}
-          <div style={{ marginTop: 10 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px' }}>
-              {chartStageOptions.map((s) => {
-                const meta     = STAGE_META[s] ?? { label: s, color: '#94a3b8' }
-                const selected = chartStages.length === 0 || chartStages.includes(s)
-                return (
-                  <button
-                    key={s}
-                    onClick={() => toggleChartStage(s)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      padding: '2px 8px',
-                      borderRadius: 4,
-                      border: `1px solid ${selected ? meta.color + '60' : 'var(--bg4)'}`,
-                      background: selected ? meta.color + '18' : 'transparent',
-                      cursor: 'pointer',
-                      opacity: selected ? 1 : 0.45,
-                      transition: 'opacity 0.1s, border-color 0.1s',
-                    }}
-                  >
-                    <span style={{ width: 7, height: 7, borderRadius: 2, background: meta.color, flexShrink: 0, display: 'inline-block' }} />
-                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>{meta.label}</span>
-                  </button>
-                )
-              })}
-              {chartStages.length > 0 && (
-                <button
-                  onClick={() => setChartStages([])}
-                  style={{ fontSize: 11, color: 'var(--text3)', cursor: 'pointer', padding: '2px 0', background: 'none', border: 'none', textDecoration: 'underline' }}
-                >
-                  Show all
-                </button>
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 4 }}>
-                <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#60a5fa" strokeWidth="1.5" strokeDasharray="5 3" /></svg>
-                <span style={{ fontSize: 11, color: 'var(--text3)' }}>Trend</span>
-              </div>
-            </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ padding: '16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)', minHeight: 280 }}>
+            <PipelineFunnelSnapshot rows={funnelRows} />
+          </div>
+          <div style={{ padding: '16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)', minHeight: 280 }}>
+            <PipelineTrendChart
+              chartData={chartData}
+              quarterChartData={quarterChartData}
+              repChartData={repChartData}
+              repQuarterChartData={repQuarterChartData}
+              chartRep={chartRep}
+              monthlyTeamTarget={monthlyTeamTarget}
+              quarterlyTeamTarget={quarterlyTeamTarget}
+            />
           </div>
         </div>
-      )}
-
-      {/* Conversion funnel */}
-      {conversionData.length > 0 && <ConversionFunnel data={conversionData} />}
+      </div>
 
       {/* Stage summary bar */}
       {stageSummary.length > 0 && (
@@ -661,15 +548,11 @@ export function PipelineClient({
               key={stage}
               onClick={() => setFilterStage(filterStage === stage ? 'all' : stage)}
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 2,
-                padding: '6px 12px',
-                borderRadius: 8,
+                display: 'flex', flexDirection: 'column', gap: 2,
+                padding: '6px 12px', borderRadius: 8,
                 border: `1px solid ${filterStage === stage ? meta.color : 'var(--bg4)'}`,
                 background: filterStage === stage ? `${meta.color}1a` : 'var(--bg2)',
-                cursor: 'pointer',
-                textAlign: 'left',
+                cursor: 'pointer', textAlign: 'left',
                 transition: 'border-color 0.1s, background 0.1s',
               }}
             >

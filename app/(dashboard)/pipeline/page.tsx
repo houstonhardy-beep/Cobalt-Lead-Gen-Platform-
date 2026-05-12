@@ -3,10 +3,8 @@ import { getTenant } from '@/lib/tenant'
 import { requireAuth } from '@/lib/auth'
 import { daysInCurrentStage } from '@/lib/pipeline/aging'
 import { PipelineClient } from './_components/PipelineClient'
-import { CHART_STAGE_ORDER } from './_components/constants'
 import type { PipelineRow } from './_components/PipelineClient'
 import type { ChartDataPoint } from './_components/PipelineChart'
-import type { ConversionStage } from './_components/ConversionFunnel'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,10 +23,6 @@ function quarterKey(date: Date): string {
 
 function quarterLabel(key: string): string {
   return key.replace('-', ' ')
-}
-
-function yearKey(date: Date): string {
-  return `${date.getFullYear()}`
 }
 
 function linearTrend(values: number[]): number[] {
@@ -68,11 +62,6 @@ function lastNQuarterKeys(n: number): string[] {
   return keys
 }
 
-function lastNYearKeys(n: number): string[] {
-  const y = new Date().getFullYear()
-  return Array.from({ length: n }, (_, i) => `${y - (n - 1) + i}`)
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function PipelinePage() {
@@ -87,20 +76,16 @@ export default async function PipelinePage() {
     )
   }
 
-  const now         = new Date()
-  const months      = lastNMonthKeys(6)
-  const quarters    = lastNQuarterKeys(4)
-  const years       = lastNYearKeys(3)
-  const chartStart  = new Date(now.getFullYear(), now.getMonth() - 5, 1)
-  const annualStart = new Date(now.getFullYear() - 2, 0, 1)
-  const histStart   = new Date(now.getFullYear() - 1, now.getMonth(), 1)
+  const now      = new Date()
+  const months   = lastNMonthKeys(6)
+  const quarters = lastNQuarterKeys(4)
 
-  // Earliest date needed across all three chart periods
-  const fetchStart  = new Date(Math.min(chartStart.getTime(), annualStart.getTime()))
+  // Covers 6-month monthly window + 4-quarter quarterly window (~13 months)
+  const fetchStart = new Date(now.getFullYear() - 1, now.getMonth(), 1)
 
   // ── Parallel queries ────────────────────────────────────────────────────────
 
-  const [opps, chartOpps, stageHistoryAll, targets] = await Promise.all([
+  const [opps, chartOpps, targets] = await Promise.all([
     db.opportunity.findMany({
       where: { tenantId: tenant.id, status: { in: ['OPEN', 'PURSUING'] } },
       orderBy: { estimatedRevenue: 'desc' },
@@ -120,11 +105,6 @@ export default async function PipelinePage() {
         stage: true, estimatedRevenue: true, createdAt: true,
         lead: { select: { assignedTo: { select: { id: true, name: true } } } },
       },
-    }),
-
-    db.stageHistory.findMany({
-      where: { tenantId: tenant.id, changedAt: { gte: histStart } },
-      select: { fromStage: true, toStage: true, daysInPreviousStage: true, opportunityId: true },
     }),
 
     db.pipelineTarget.findMany({
@@ -185,10 +165,6 @@ export default async function PipelinePage() {
     total: monthTotals[i], trend: linearTrend(monthTotals)[i], stages: byMonth[mk],
   }))
 
-  const activeStages = CHART_STAGE_ORDER.filter((s) =>
-    months.some((mk) => (byMonth[mk][s] ?? 0) > 0)
-  )
-
   // ── Chart data — quarterly (last 4 quarters) ───────────────────────────────
 
   const byQuarter: Record<string, Record<string, number>> = {}
@@ -205,22 +181,6 @@ export default async function PipelinePage() {
     total: quarterTotals[i], trend: linearTrend(quarterTotals)[i], stages: byQuarter[qk],
   }))
 
-  // ── Chart data — annual (last 3 years) ─────────────────────────────────────
-
-  const byYear: Record<string, Record<string, number>> = {}
-  for (const yk of years) byYear[yk] = {}
-  for (const o of chartOpps) {
-    const yk = yearKey(o.createdAt)
-    if (!byYear[yk]) continue
-    const s = o.stage ?? 'UNKNOWN'
-    byYear[yk][s] = (byYear[yk][s] ?? 0) + (o.estimatedRevenue ?? 0)
-  }
-  const yearTotals = years.map((yk) => Object.values(byYear[yk]).reduce((a, b) => a + b, 0))
-  const annualChartData: ChartDataPoint[] = years.map((yk, i) => ({
-    monthKey: yk, monthLabel: yk,
-    total: yearTotals[i], trend: linearTrend(yearTotals)[i], stages: byYear[yk],
-  }))
-
   // ── Per-rep chart data ──────────────────────────────────────────────────────
 
   const byMonthByRep: Record<string, Record<string, Record<string, number>>> = {}
@@ -234,7 +194,6 @@ export default async function PipelinePage() {
 
   const repChartData: Record<string, ChartDataPoint[]> = {}
   const repQuarterChartData: Record<string, ChartDataPoint[]> = {}
-  const repAnnualChartData: Record<string, ChartDataPoint[]> = {}
 
   for (const [repId] of repIndex) {
     const rm = byMonthByRep[repId] ?? {}
@@ -260,21 +219,6 @@ export default async function PipelinePage() {
       monthKey: qk, monthLabel: quarterLabel(qk),
       total: qTotals[i], trend: linearTrend(qTotals)[i], stages: qByRep[qk],
     }))
-
-    // annual
-    const yByRep: Record<string, Record<string, number>> = {}
-    for (const yk of years) yByRep[yk] = {}
-    for (const o of chartOpps) {
-      if ((o.lead?.assignedTo?.id ?? 'unassigned') !== repId) continue
-      const yk = yearKey(o.createdAt), s = o.stage ?? 'UNKNOWN', v = o.estimatedRevenue ?? 0
-      if (!yByRep[yk]) continue
-      yByRep[yk][s] = (yByRep[yk][s] ?? 0) + v
-    }
-    const yTotals = years.map((yk) => Object.values(yByRep[yk]).reduce((a, b) => a + b, 0))
-    repAnnualChartData[repId] = years.map((yk, i) => ({
-      monthKey: yk, monthLabel: yk,
-      total: yTotals[i], trend: linearTrend(yTotals)[i], stages: yByRep[yk],
-    }))
   }
 
   // ── Targets ─────────────────────────────────────────────────────────────────
@@ -293,13 +237,11 @@ export default async function PipelinePage() {
   const quarterlyTeamTarget = find(null, currentQ, 'QUARTERLY')
   const monthlyTeamTarget   = find(null, currentMonthKey, 'MONTHLY')
 
-  // Rep weighted pipeline from active opps
   const repWeightedPipeline = new Map<string, number>()
   for (const r of rows) {
     if (r.repId) repWeightedPipeline.set(r.repId, (repWeightedPipeline.get(r.repId) ?? 0) + (r.weightedValue ?? 0))
   }
 
-  // Collect all reps that have at least one target
   const repTargetMap = new Map<string, { repId: string; repName: string; annual: number | null; quarterly: number | null; monthly: number | null; weighted: number }>()
   for (const t of targets) {
     if (!t.userId || t.stage) continue
@@ -315,72 +257,18 @@ export default async function PipelinePage() {
   }
   const repTargetCards = [...repTargetMap.values()]
 
-  const thisMonthAdds = Object.values(byMonth[currentMonthKey] ?? {}).reduce((s, v) => s + v, 0)
-
-  // ── Conversion funnel ────────────────────────────────────────────────────────
-
-  const FUNNEL_STAGES = [
-    'SIGNAL', 'PROSPECT', 'OUTREACH_SENT', 'ENGAGED',
-    'QUALIFIED', 'PROPOSAL', 'PROPOSAL_SENT', 'NEGOTIATION', 'CLOSED_WON',
-  ] as const
-
-  const enteredStage  = new Map<string, Set<string>>()
-  const daysInStageMap = new Map<string, number[]>()
-
-  for (const h of stageHistoryAll) {
-    if (!enteredStage.has(h.toStage)) enteredStage.set(h.toStage, new Set())
-    enteredStage.get(h.toStage)!.add(h.opportunityId)
-    if (h.fromStage && h.daysInPreviousStage !== null) {
-      if (!daysInStageMap.has(h.fromStage)) daysInStageMap.set(h.fromStage, [])
-      daysInStageMap.get(h.fromStage)!.push(h.daysInPreviousStage)
-    }
-  }
-
-  // Seed SIGNAL with all opps that ever appeared in stage history
-  const allOppIds = new Set(stageHistoryAll.map((h) => h.opportunityId))
-  if (!enteredStage.has('SIGNAL')) enteredStage.set('SIGNAL', new Set())
-  for (const id of allOppIds) enteredStage.get('SIGNAL')!.add(id)
-
-  const conversionStages: ConversionStage[] = FUNNEL_STAGES.map((stage, i) => {
-    const entered = enteredStage.get(stage)?.size ?? 0
-    const days    = daysInStageMap.get(stage) ?? []
-    const avgDays = days.length ? Math.round(days.reduce((a, b) => a + b, 0) / days.length) : null
-    let conversionRate: number | null = null
-    if (i < FUNNEL_STAGES.length - 1) {
-      const next = enteredStage.get(FUNNEL_STAGES[i + 1])?.size ?? 0
-      conversionRate = entered > 0 ? Math.round((next / entered) * 100) : null
-    }
-    return { stage, entered, avgDays, conversionRate }
-  })
-
-  const ratedStages = conversionStages.filter((s) => s.conversionRate !== null)
-  const minConv     = ratedStages.length ? Math.min(...ratedStages.map((s) => s.conversionRate!)) : null
-  const timedStages = conversionStages.filter((s) => s.avgDays !== null && s.avgDays > 0)
-  const minDays     = timedStages.length ? Math.min(...timedStages.map((s) => s.avgDays!)) : null
-
-  const conversionData = conversionStages.map((s) => ({
-    ...s,
-    isBiggestDropOff: s.conversionRate !== null && s.conversionRate === minConv,
-    isFastest:        s.avgDays !== null && s.avgDays === minDays && s.avgDays > 0,
-  }))
-
   return (
     <PipelineClient
       rows={rows}
       chartData={chartData}
       quarterChartData={quarterChartData}
-      annualChartData={annualChartData}
       repChartData={repChartData}
       repQuarterChartData={repQuarterChartData}
-      repAnnualChartData={repAnnualChartData}
       chartReps={chartReps}
-      activeStages={activeStages}
       annualTeamTarget={annualTeamTarget}
       quarterlyTeamTarget={quarterlyTeamTarget}
       monthlyTeamTarget={monthlyTeamTarget}
       repTargetCards={repTargetCards}
-      thisMonthAdds={thisMonthAdds}
-      conversionData={conversionData}
     />
   )
 }
