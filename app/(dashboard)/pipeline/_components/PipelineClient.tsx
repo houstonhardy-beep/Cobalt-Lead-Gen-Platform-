@@ -522,11 +522,11 @@ export function PipelineClient({
             </select>
           </div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={{ padding: '16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)', minHeight: 280 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, alignItems: 'stretch' }}>
+          <div style={{ padding: '16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)' }}>
             <PipelineFunnelSnapshot rows={funnelRows} />
           </div>
-          <div style={{ padding: '16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)', minHeight: 280 }}>
+          <div style={{ padding: '16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)', minHeight: 260 }}>
             <PipelineTrendChart
               chartData={chartData}
               quarterChartData={quarterChartData}

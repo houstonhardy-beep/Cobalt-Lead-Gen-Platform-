@@ -189,16 +189,17 @@ export function PipelineTrendChart({
         </div>
       </div>
 
-      {/* Chart */}
+      {/* Chart — flex:1 fills remaining height */}
+      <div style={{ flex: 1, minHeight: 0 }}>
       {mode === 'total' ? (
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={totalChartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.05)" />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={fmt$} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={52} />
             <Tooltip content={<TotalTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
             {orderedStages.map((stage) => (
-              <Bar key={stage} dataKey={stage} stackId="stack" fill={STAGE_META[stage]?.color ?? '#94a3b8'} isAnimationActive={false} />
+              <Bar key={stage} dataKey={stage} stackId="stack" fill={STAGE_META[stage]?.color ?? '#94a3b8'} barSize={22} isAnimationActive={false} />
             ))}
             <Line dataKey="trend" stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="5 3" dot={false} activeDot={false} isAnimationActive={false} />
             {target !== null && (
@@ -213,16 +214,17 @@ export function PipelineTrendChart({
           </ComposedChart>
         </ResponsiveContainer>
       ) : (
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={stageChartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.05)" />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={fmt$} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={52} />
             <Tooltip content={<StageTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-            <Bar dataKey="value" fill={stageMeta.color} opacity={0.8} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="value" fill={stageMeta.color} opacity={0.8} radius={[2, 2, 0, 0]} barSize={22} isAnimationActive={false} />
           </ComposedChart>
         </ResponsiveContainer>
       )}
+      </div>
 
       {/* Legend */}
       {mode === 'total' && (
