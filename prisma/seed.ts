@@ -44,21 +44,11 @@ async function main() {
   console.log(`  ✓ Tenant: ${lek.name}`)
 
   // ── Users ─────────────────────────────────────────────────────────────────────
-  await db.user.upsert({
+  const lekAdmin = await db.user.upsert({
     where:  { email: 'houston.hardy@cobaltsp.com' },
-    update: {},
+    update: { role: 'TENANT_ADMIN', tenantId: lek.id, passwordHash: await hash('lek-admin-2026') },
     create: {
       email: 'houston.hardy@cobaltsp.com', name: 'Houston Hardy',
-      role: 'COBALT_SUPER_ADMIN', passwordHash: await hash('cobalt-super-2026'),
-      tenantId: null, active: true,
-    },
-  })
-
-  const lekAdmin = await db.user.upsert({
-    where:  { email: 'admin@leksystems.com' },
-    update: {},
-    create: {
-      email: 'admin@leksystems.com', name: 'Alex Carter',
       role: 'TENANT_ADMIN', passwordHash: await hash('lek-admin-2026'),
       tenantId: lek.id, active: true,
     },
@@ -84,6 +74,8 @@ async function main() {
   await db.customerLocation.deleteMany({ where: { tenantId: lek.id } })
   await db.customer.deleteMany({ where: { tenantId: lek.id } })
   console.log('  ✓ Existing LEK data wiped')
+  // Remove legacy admin@leksystems.com stub account (replaced by houston.hardy@cobaltsp.com)
+  await db.user.deleteMany({ where: { email: 'admin@leksystems.com' } })
 
   // ── Leads ─────────────────────────────────────────────────────────────────────
 
@@ -554,7 +546,7 @@ async function main() {
     }}),
   ])
 
-  // Alex Carter's (lekAdmin) opportunities — gives her weighted pipeline against her targets
+  // Houston Hardy's (lekAdmin) opportunities — gives them weighted pipeline against their targets
   await Promise.all([
     db.opportunity.create({ data: {
       tenantId: lek.id, leadId: gulfShores.id,
@@ -733,9 +725,8 @@ async function main() {
 
   console.log('\nSeed complete.')
   console.log('\nDev credentials (rotate before staging/prod):')
-  console.log('  Super admin : houston.hardy@cobaltsp.com / cobalt-super-2026')
-  console.log('  LEK admin   : admin@leksystems.com       / lek-admin-2026')
-  console.log('  LEK rep     : rep@leksystems.com          / lek-rep-2026')
+  console.log('  LEK admin : houston.hardy@cobaltsp.com / lek-admin-2026')
+  console.log('  LEK rep   : rep@leksystems.com         / lek-rep-2026')
 }
 
 main()
