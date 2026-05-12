@@ -325,6 +325,9 @@ export function PipelineClient({
   const [filterDateRange, setFilterDateRange]             = useState('all')
   const [sort, setSort]                                   = useState('value')
 
+  // Target period toggle (independent of chart period)
+  const [targetPeriod, setTargetPeriod] = useState<'monthly' | 'quarterly' | 'annual'>('monthly')
+
   // Chart-specific filters (independent of list)
   const [chartRep, setChartRep]       = useState('all')
   const [chartPeriod, setChartPeriod] = useState<'monthly' | 'quarterly' | 'annual'>('monthly')
@@ -477,25 +480,72 @@ export function PipelineClient({
         </p>
       </div>
 
-      {/* Team target KPI cards — Monthly · Quarterly · Annual */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-        <KpiCard label={`Weighted Pipeline — ${thisMonthLabel}`} value={currentWeightedTotal} target={monthlyTeamTarget}   subtitle="monthly target" />
-        <KpiCard label="Weighted Pipeline — This Quarter"        value={currentWeightedTotal} target={quarterlyTeamTarget} subtitle="quarterly target" />
-        <KpiCard label="Weighted Pipeline — This Year"           value={currentWeightedTotal} target={annualTeamTarget}    subtitle="annual target" />
-      </div>
+      {/* Target KPI cards with period toggle */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)' }}>
+            Targets
+          </span>
+          <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--bg4)' }}>
+            {([
+              ['monthly',   'Monthly'],
+              ['quarterly', 'Quarterly'],
+              ['annual',    'Annual'],
+            ] as const).map(([p, label]) => (
+              <button
+                key={p}
+                onClick={() => setTargetPeriod(p)}
+                style={{
+                  padding: '3px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: 'none',
+                  background: targetPeriod === p ? 'var(--cobalt)' : 'var(--bg3)',
+                  color: targetPeriod === p ? '#fff' : 'var(--text3)',
+                  transition: 'background 0.1s',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-      {/* Rep target cards */}
-      {repTargetCards.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Cards — one per entity for the selected period */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <KpiCard
+            label={
+              targetPeriod === 'monthly'   ? `Team — ${thisMonthLabel}` :
+              targetPeriod === 'quarterly' ? 'Team — This Quarter' :
+                                            'Team — This Year'
+            }
+            value={currentWeightedTotal}
+            target={
+              targetPeriod === 'monthly'   ? monthlyTeamTarget :
+              targetPeriod === 'quarterly' ? quarterlyTeamTarget :
+                                            annualTeamTarget
+            }
+          />
           {repTargetCards.map((rt) => (
-            <div key={rt.repId} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-              <KpiCard label={`${rt.repName} — ${thisMonthLabel}`}  value={rt.weighted} target={rt.monthly}   subtitle="rep monthly" />
-              <KpiCard label={`${rt.repName} — This Quarter`}       value={rt.weighted} target={rt.quarterly} subtitle="rep quarterly" />
-              <KpiCard label={`${rt.repName} — This Year`}          value={rt.weighted} target={rt.annual}    subtitle="rep annual" />
-            </div>
+            <KpiCard
+              key={rt.repId}
+              label={
+                targetPeriod === 'monthly'   ? `${rt.repName} — ${thisMonthLabel}` :
+                targetPeriod === 'quarterly' ? `${rt.repName} — This Quarter` :
+                                              `${rt.repName} — This Year`
+              }
+              value={rt.weighted}
+              target={
+                targetPeriod === 'monthly'   ? rt.monthly :
+                targetPeriod === 'quarterly' ? rt.quarterly :
+                                              rt.annual
+              }
+            />
           ))}
         </div>
-      )}
+      </div>
 
       {/* Stacked bar chart with filters */}
       {chartData.length > 0 && (
