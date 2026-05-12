@@ -139,7 +139,7 @@ export function PipelineFunnelSnapshot({ rows }: { rows: PipelineRow[] }) {
                 lineHeight: 1.25,
               }}
             >
-              <div style={{ fontSize: 10, fontWeight: 700, color: isEmpty ? 'rgba(255,255,255,0.45)' : '#fff', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: isEmpty ? 'rgba(0,0,0,0.3)' : '#fff', whiteSpace: 'nowrap' }}>
                 {meta.label} · {s.count} {s.count === 1 ? 'opp' : 'opps'}
               </div>
               {!isEmpty && (

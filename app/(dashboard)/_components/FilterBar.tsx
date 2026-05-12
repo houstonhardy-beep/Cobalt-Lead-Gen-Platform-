@@ -42,7 +42,7 @@ export function FilterBar({ reps }: { reps: FilterRep[] }) {
             onClick={() => update('period', p.value)}
             className="px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
             style={{
-              background: period === p.value ? 'var(--cobalt)' : 'var(--bg2)',
+              background: period === p.value ? 'var(--accent)' : 'var(--bg2)',
               color:      period === p.value ? '#fff'          : 'var(--text2)',
             }}
           >

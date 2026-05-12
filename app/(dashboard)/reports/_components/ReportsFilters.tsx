@@ -46,7 +46,7 @@ export function ReportsFilters({ reps }: { reps: FilterRep[] }) {
     color: 'var(--text)',
     border: '1px solid var(--bg4)',
     outline: 'none',
-    colorScheme: 'dark' as const,
+    colorScheme: 'light' as const,
   }
 
   return (
@@ -63,7 +63,7 @@ export function ReportsFilters({ reps }: { reps: FilterRep[] }) {
             onClick={() => setPeriod(p.value)}
             className="px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"
             style={{
-              background: period === p.value ? 'var(--cobalt)' : 'var(--bg2)',
+              background: period === p.value ? 'var(--accent)' : 'var(--bg2)',
               color:      period === p.value ? '#fff'          : 'var(--text2)',
             }}
           >

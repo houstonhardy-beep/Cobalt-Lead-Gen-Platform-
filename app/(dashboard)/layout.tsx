@@ -11,8 +11,8 @@ import type { TenantBranding, TenantConfig } from '@/lib/tenant/types'
 const COBALT_BRANDING: TenantBranding = {
   companyName: 'Cobalt',
   tagline: 'Portfolio view',
-  primaryColor: '#1d4ed8',
-  accentColor: '#f59e0b',
+  primaryColor: '#1A56FF',
+  accentColor: '#1A56FF',
   logoUrl: '',
   faviconUrl: '',
 }
@@ -63,7 +63,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <TenantProvider value={{ id: tenantId, slug: tenantSlug, name: tenantName, branding, config }}>
       <style>{`
         :root {
-          --brand: ${branding.primaryColor};
+          --brand:  ${branding.primaryColor};
+          --accent: ${branding.tenantAccentColor ?? branding.primaryColor};
           ${branding.accentColor ? `--brand-accent: ${branding.accentColor};` : ''}
         }
       `}</style>

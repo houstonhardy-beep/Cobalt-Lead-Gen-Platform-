@@ -32,20 +32,53 @@ export function Sidebar() {
   return (
     <aside
       className="flex flex-col shrink-0 h-full"
-      style={{ width: 'var(--sidebar-w)', background: 'var(--bg2)', borderRight: '1px solid var(--bg4)' }}
+      style={{ width: 'var(--sidebar-w)', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--sidebar-border)' }}
     >
-      {/* Brand */}
-      <div
-        className="flex items-center gap-2 px-4 font-semibold text-sm tracking-wide"
-        style={{ height: 'var(--topbar-h)', borderBottom: '1px solid var(--bg4)', color: 'var(--text)' }}
-      >
-        <span
-          className="flex items-center justify-center w-7 h-7 rounded text-white text-xs font-bold shrink-0"
-          style={{ background: 'var(--brand)' }}
-        >
-          {name.charAt(0)}
-        </span>
-        <span className="truncate">{name}</span>
+      {/* Brand header — Cobalt platform + tenant identity */}
+      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--sidebar-border)' }}>
+
+        {/* Cobalt logo row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 8, background: '#1A56FF',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <img
+              src="/LOGO_Cobalt_white_image_only_x2.png"
+              alt=""
+              width={19}
+              height={19}
+              style={{ objectFit: 'contain', display: 'block' }}
+            />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--sidebar-text)' }}>
+            Cobalt
+          </span>
+        </div>
+
+        {/* Divider */}
+        <div style={{ margin: '10px 0 9px', borderTop: '1px solid var(--sidebar-border)' }} />
+
+        {/* Tenant logo + name */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {branding.logoUrl ? (
+            <img
+              src={branding.logoUrl}
+              alt={name}
+              style={{ height: 24, maxWidth: 88, objectFit: 'contain', display: 'block' }}
+            />
+          ) : (
+            <div style={{
+              width: 24, height: 24, borderRadius: 6, background: 'var(--accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>{name.charAt(0)}</span>
+            </div>
+          )}
+          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--sidebar-text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {name}
+          </span>
+        </div>
       </div>
 
       {/* Primary nav */}
@@ -58,7 +91,7 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom nav */}
-      <div className="py-3 px-2 space-y-0.5" style={{ borderTop: '1px solid var(--bg4)' }}>
+      <div className="py-3 px-2 space-y-0.5" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
         {BOTTOM_NAV.map(({ href, label, icon: Icon }) => (
           <NavItem key={href} href={href} label={label} active={isActive(href)}>
             <Icon />
@@ -83,26 +116,26 @@ function NavItem({
   return (
     <Link
       href={href}
-      className="flex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors"
+      className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors"
       style={
         active
-          ? { background: 'var(--brand)', color: '#fff' }
-          : { color: 'var(--text2)' }
+          ? { background: 'var(--accent)', color: '#fff' }
+          : { color: 'var(--sidebar-text2)' }
       }
       onMouseEnter={(e) => {
         if (!active) {
-          e.currentTarget.style.background = 'var(--bg3)'
-          e.currentTarget.style.color = 'var(--text)'
+          e.currentTarget.style.background = 'var(--sidebar-bg2)'
+          e.currentTarget.style.color = 'var(--sidebar-text)'
         }
       }}
       onMouseLeave={(e) => {
         if (!active) {
           e.currentTarget.style.background = ''
-          e.currentTarget.style.color = 'var(--text2)'
+          e.currentTarget.style.color = 'var(--sidebar-text2)'
         }
       }}
     >
-      <span className="w-4 h-4 shrink-0 opacity-80">{children}</span>
+      <span className="w-4 h-4 shrink-0 opacity-75">{children}</span>
       {label}
     </Link>
   )

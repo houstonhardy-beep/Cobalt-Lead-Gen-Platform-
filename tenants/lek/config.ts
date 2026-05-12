@@ -115,8 +115,9 @@ export const LEK_CONFIG: TenantConfig = {
 export const LEK_BRANDING: TenantBranding = {
   companyName: 'LEK Technologies',
   tagline: 'Verkada-certified security for Alabama and the Panhandle',
-  primaryColor: '#1d4ed8',
-  accentColor: '#f59e0b',
-  logoUrl: '/tenants/lek/logo.svg',
+  primaryColor: '#1A56FF',
+  accentColor: '#E8500A',
+  tenantAccentColor: '#E8500A',
+  logoUrl: '/logo.png',
   faviconUrl: '/tenants/lek/favicon.ico',
 }

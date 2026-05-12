@@ -155,7 +155,7 @@ export function PipelineTrendChart({
             {(['total', 'byStage'] as const).map((m) => (
               <button key={m} onClick={() => setMode(m)} style={{
                 padding: '3px 9px', fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none',
-                background: mode === m ? 'var(--cobalt)' : 'var(--bg3)',
+                background: mode === m ? 'var(--accent)' : 'var(--bg3)',
                 color: mode === m ? '#fff' : 'var(--text3)',
               }}>
                 {m === 'total' ? 'Total' : 'By Stage'}
@@ -167,7 +167,7 @@ export function PipelineTrendChart({
             {(['monthly', 'quarterly'] as const).map((p) => (
               <button key={p} onClick={() => setPeriod(p)} style={{
                 padding: '3px 9px', fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none',
-                background: period === p ? 'var(--cobalt)' : 'var(--bg3)',
+                background: period === p ? 'var(--accent)' : 'var(--bg3)',
                 color: period === p ? '#fff' : 'var(--text3)',
               }}>
                 {p === 'monthly' ? 'Mo' : 'Qtr'}

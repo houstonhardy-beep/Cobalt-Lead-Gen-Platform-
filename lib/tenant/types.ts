@@ -107,9 +107,10 @@ export interface TenantConfig {
 export interface TenantBranding {
   companyName: string
   tagline?: string
-  primaryColor: string        // hex, e.g. "#1d4ed8"
+  primaryColor: string        // hex, e.g. "#1d4ed8" — sets --brand
   accentColor?: string
-  logoUrl?: string            // path under /public/tenants/<slug>/
+  tenantAccentColor?: string  // hex — sets --accent (nav active, buttons, progress bars)
+  logoUrl?: string            // served from /public/
   faviconUrl?: string
 }
 

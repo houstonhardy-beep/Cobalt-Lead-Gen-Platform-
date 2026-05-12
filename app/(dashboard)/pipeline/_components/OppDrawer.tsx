@@ -459,7 +459,7 @@ function DrawerBody({
                   onClick={() => onStageChange(pendingStage)}
                   style={{
                     fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
-                    border: 'none', background: 'var(--cobalt)', color: '#fff', cursor: 'pointer',
+                    border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer',
                   }}
                 >
                   Update Stage

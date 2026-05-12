@@ -74,10 +74,10 @@ function LoginContent() {
       {/* Logo */}
       <div className="flex flex-col items-center mb-8">
         <div
-          className="flex items-center justify-center w-12 h-12 rounded-xl mb-4 text-white font-bold text-xl select-none"
-          style={{ background: 'var(--cobalt)' }}
+          className="flex items-center justify-center w-12 h-12 rounded-xl mb-4 select-none"
+          style={{ background: '#1A56FF' }}
         >
-          C
+          <img src="/LOGO_Cobalt_white_image_only_x2.png" alt="Cobalt" width={30} height={30} style={{ objectFit: 'contain' }} />
         </div>
         <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--text)' }}>
           Cobalt

@@ -185,9 +185,9 @@ function SelectControl({
 // ─── KpiCard ──────────────────────────────────────────────────────────────────
 
 function KpiCard({ label, value, target }: { label: string; value: number; target: number | null }) {
-  const rawPct = target ? Math.round((value / target) * 100) : null
-  const barPct = rawPct !== null ? Math.min(100, rawPct) : null
-  const color  = rawPct === null ? '#94a3b8' : rawPct > 100 ? '#34d399' : rawPct >= 80 ? '#34d399' : rawPct >= 50 ? '#fbbf24' : '#f87171'
+  const rawPct    = target ? Math.round((value / target) * 100) : null
+  const barPct    = rawPct !== null ? Math.min(100, rawPct) : null
+  const textColor = rawPct === null ? 'var(--text3)' : rawPct > 100 ? '#16A34A' : rawPct >= 80 ? '#16A34A' : rawPct >= 50 ? '#F59E0B' : '#DC2626'
 
   return (
     <div style={{ padding: '14px 16px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--bg4)' }}>
@@ -200,10 +200,10 @@ function KpiCard({ label, value, target }: { label: string; value: number; targe
       {target !== null ? (
         <>
           <div style={{ height: 4, borderRadius: 2, background: 'var(--bg4)', overflow: 'hidden', marginBottom: 6 }}>
-            <div style={{ height: '100%', width: `${barPct}%`, borderRadius: 2, background: color, transition: 'width 0.3s' }} />
+            <div style={{ height: '100%', width: `${barPct}%`, borderRadius: 2, background: 'var(--accent)', transition: 'width 0.3s' }} />
           </div>
           <p style={{ fontSize: 11, color: 'var(--text3)', margin: 0 }}>
-            <span style={{ color, fontWeight: 600 }}>{rawPct}%</span>
+            <span style={{ color: textColor, fontWeight: 600 }}>{rawPct}%</span>
             {' of '}{fmt$(target)} target
           </p>
         </>
@@ -446,7 +446,7 @@ export function PipelineClient({
                 onClick={() => setTargetPeriod(p)}
                 style={{
                   padding: '3px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none',
-                  background: targetPeriod === p ? 'var(--cobalt)' : 'var(--bg3)',
+                  background: targetPeriod === p ? 'var(--accent)' : 'var(--bg3)',
                   color: targetPeriod === p ? '#fff' : 'var(--text3)',
                   transition: 'background 0.1s',
                 }}

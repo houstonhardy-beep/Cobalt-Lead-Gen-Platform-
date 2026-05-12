@@ -3,35 +3,44 @@
 /* ── Design tokens ─────────────────────────────────────────────────────────── */
 
 :root {
-  /* Background layers */
-  --bg:  #111827;
-  --bg2: #1f2937;
-  --bg3: #283548;
-  --bg4: #334155;
+  /* ── Content area (light) ── */
+  --bg:   #F8F9FA;   /* page background      */
+  --bg2:  #FFFFFF;   /* card / panel         */
+  --bg3:  #F0F4FF;   /* hover / selected row */
+  --bg4:  #E2E6EA;   /* borders              */
 
-  /* Text */
-  --text:  #f0f4ff;
-  --text2: #94a3b8;
-  --text3: #4e6a8a;
+  /* Text on light backgrounds */
+  --text:  #111827;
+  --text2: #374151;
+  --text3: #6B7280;
 
-  /* Brand blue */
-  --cobalt:  #1d4ed8;
+  /* ── Sidebar / topbar (always dark) ── */
+  --sidebar-bg:     #0F1117;
+  --sidebar-bg2:    #1A1F2E;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-text:   #F0F4FF;
+  --sidebar-text2:  #94a3b8;
+  --sidebar-text3:  #64748b;
+
+  /* ── Brand ── */
+  --cobalt:  #1A56FF;
   --cobalt2: #3b82f6;
   --cobalt3: #60a5fa;
 
-  /* Semantic status */
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger:  #ef4444;
-
-  /* Layout dimensions */
-  --sidebar-w: 224px;
-  --topbar-h:  60px;
-
-  /* Tenant-overrideable brand colors (set by dashboard layout) */
+  /* Tenant-overrideable accent (injected per-tenant by dashboard layout) */
+  --accent:       var(--cobalt);
   --brand:        var(--cobalt);
   --brand-light:  var(--cobalt2);
   --brand-accent: var(--warning);
+
+  /* ── Semantic status ── */
+  --success: #16A34A;
+  --warning: #F59E0B;
+  --danger:  #DC2626;
+
+  /* ── Layout ── */
+  --sidebar-w: 224px;
+  --topbar-h:  60px;
 }
 
 /* ── Tailwind theme extensions ─────────────────────────────────────────────── */
@@ -72,6 +81,13 @@ body {
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg2); }
-::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+::-webkit-scrollbar-track { background: var(--bg4); }
+::-webkit-scrollbar-thumb { background: #CBD5E0; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Recharts — grid lines visible on light backgrounds ─────────────────────── */
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(0, 0, 0, 0.07);
+}
