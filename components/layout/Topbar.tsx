@@ -46,6 +46,7 @@ export function Topbar({ userName, userEmail, userRole, alertCount }: TopbarProp
               src={branding.logoUrl}
               alt={tenantName}
               style={{ height: 22, maxWidth: 80, objectFit: 'contain', display: 'block' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
             />
           )}
           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sidebar-text)', whiteSpace: 'nowrap' }}>

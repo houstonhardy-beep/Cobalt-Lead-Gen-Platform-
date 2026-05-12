@@ -59,7 +59,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       })
     : 0
 
-  const accentColor = branding.tenantAccentColor ?? branding.primaryColor
+  const accentColor = branding.tenantAccentColor ?? branding.accentColor ?? branding.primaryColor
 
   return (
     <TenantProvider value={{ id: tenantId, slug: tenantSlug, name: tenantName, branding, config }}>
