@@ -102,16 +102,26 @@ const JOB_TYPE_OPTIONS: { value: string; label: string }[] = [
 ]
 
 const PRODUCT_CATEGORY_OPTIONS: { value: string; label: string }[] = [
-  { value: '',                         label: '— None —' },
-  { value: 'ACCESS_CONTROL',           label: 'Access Control' },
-  { value: 'VIDEO_SURVEILLANCE',       label: 'Video Surveillance' },
-  { value: 'INTRUSION_ALARM',          label: 'Intrusion Alarm' },
-  { value: 'INTERCOM_AUDIO',           label: 'Intercom / Audio' },
-  { value: 'NETWORKING_INFRASTRUCTURE',label: 'Networking' },
-  { value: 'FIRE_LIFE_SAFETY',         label: 'Fire / Life Safety' },
-  { value: 'STRUCTURED_CABLING',       label: 'Structured Cabling' },
-  { value: 'INTEGRATED_SYSTEMS',       label: 'Integrated Systems' },
-  { value: 'SYSTEMS_OTHER',            label: 'Systems (Other)' },
+  { value: '',                          label: '— None —' },
+  { value: 'ACCESS_CONTROL',            label: 'Access Control' },
+  { value: 'VIDEO_SURVEILLANCE',        label: 'Video Surveillance' },
+  { value: 'INTRUSION_ALARM',           label: 'Intrusion Alarm' },
+  { value: 'INTERCOM_AUDIO',            label: 'Intercom / Audio' },
+  { value: 'NETWORKING_INFRASTRUCTURE', label: 'Networking' },
+  { value: 'FIRE_LIFE_SAFETY',          label: 'Fire / Life Safety' },
+  { value: 'STRUCTURED_CABLING',        label: 'Structured Cabling' },
+  { value: 'AUTO_DOOR_SLIDING',         label: 'Auto Door – Sliding' },
+  { value: 'AUTO_DOOR_ROTATING',        label: 'Auto Door – Rotating' },
+  { value: 'AUTO_DOOR_OVERHEAD',        label: 'Auto Door – Overhead' },
+  { value: 'AUTO_DOOR_SWING',           label: 'Auto Door – Swing' },
+  { value: 'AUTO_DOOR_FOLDING',         label: 'Auto Door – Folding' },
+  { value: 'MANUAL_DOOR_SLIDING',       label: 'Manual Door – Sliding' },
+  { value: 'MANUAL_DOOR_ROTATING',      label: 'Manual Door – Rotating' },
+  { value: 'MANUAL_DOOR_OVERHEAD',      label: 'Manual Door – Overhead' },
+  { value: 'MANUAL_DOOR_SWING',         label: 'Manual Door – Swing' },
+  { value: 'MANUAL_DOOR_FOLDING',       label: 'Manual Door – Folding' },
+  { value: 'INTEGRATED_SYSTEMS',        label: 'Integrated Systems' },
+  { value: 'SYSTEMS_OTHER',             label: 'Systems (Other)' },
 ]
 
 const LEAD_SOURCE_OPTIONS: { value: string; label: string }[] = [
