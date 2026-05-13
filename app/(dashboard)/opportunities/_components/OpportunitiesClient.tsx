@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { OppDrawer } from '../../pipeline/_components/OppDrawer'
+import { LeadDrawer } from './LeadDrawer'
 import type { PipelineRow } from '../../pipeline/_components/PipelineClient'
 
 // ── Exported types (consumed by server page) ──────────────────────────────────
@@ -195,6 +196,7 @@ export function OpportunitiesClient({
   const [statusFilter, setStatusFilter] = useState('ALL')
 
   const [selectedOppId,     setSelectedOppId]     = useState<string | null>(null)
+  const [selectedLeadId,    setSelectedLeadId]    = useState<string | null>(null)
   const [showNewLeadDrawer, setShowNewLeadDrawer] = useState(false)
   const [showNewOppDrawer,  setShowNewOppDrawer]  = useState(false)
   const [convertingLead,    setConvertingLead]    = useState<LeadRow | null>(null)
@@ -349,6 +351,16 @@ export function OpportunitiesClient({
 
   function handleRowPatch(id: string, patch: Partial<OppRow>) {
     setOpps((prev) => prev.map((o) => o.id === id ? { ...o, ...patch } : o))
+  }
+
+  function handleLeadUpdate(id: string, patch: Partial<LeadRow>) {
+    setLeads((prev) => prev.map((l) => l.id === id ? { ...l, ...patch } : l))
+  }
+
+  function handleConvertFromDrawer(leadId: string) {
+    setSelectedLeadId(null)
+    const lead = leads.find((l) => l.id === leadId)
+    if (lead) setConvertingLead(lead)
   }
 
   // ── Filtered data ───────────────────────────────────────────────────────────
@@ -519,6 +531,7 @@ export function OpportunitiesClient({
         <LeadList
           leads={filteredLeads}
           reps={reps}
+          onOpen={(id) => setSelectedLeadId(id)}
           onDismiss={handleDismissLead}
           onAssign={handleAssignLead}
           onConvert={(lead) => setConvertingLead(lead)}
@@ -557,15 +570,24 @@ export function OpportunitiesClient({
         onClose={() => setSelectedOppId(null)}
         onRowPatch={handleRowPatch}
       />
+
+      <LeadDrawer
+        leadId={selectedLeadId}
+        reps={reps}
+        onClose={() => setSelectedLeadId(null)}
+        onLeadUpdate={handleLeadUpdate}
+        onConvert={handleConvertFromDrawer}
+      />
     </div>
   )
 }
 
 // ── LeadList ──────────────────────────────────────────────────────────────────
 
-function LeadList({ leads, reps, onDismiss, onAssign, onConvert }: {
+function LeadList({ leads, reps, onOpen, onDismiss, onAssign, onConvert }: {
   leads:     LeadRow[]
   reps:      { id: string; name: string | null }[]
+  onOpen:    (id: string) => void
   onDismiss: (id: string) => void
   onAssign:  (id: string, repId: string | null) => void
   onConvert: (lead: LeadRow) => void
@@ -600,11 +622,15 @@ function LeadList({ leads, reps, onDismiss, onAssign, onConvert }: {
       {leads.map((lead) => (
         <div
           key={lead.id}
+          onClick={() => onOpen(lead.id)}
           style={{
             display: 'grid', gridTemplateColumns: colTemplate, gap: '0 12px',
             alignItems: 'center', padding: '12px 16px',
             borderRadius: 8, background: 'var(--bg2)', border: '1px solid var(--bg4)',
+            cursor: 'pointer', transition: 'border-color 0.15s',
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--bg4)' }}
         >
           {/* Company / Contact */}
           <div>
@@ -651,7 +677,8 @@ function LeadList({ leads, reps, onDismiss, onAssign, onConvert }: {
           {/* Rep (inline assign dropdown) */}
           <select
             value={lead.repId ?? ''}
-            onChange={(e) => onAssign(lead.id, e.target.value || null)}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => { e.stopPropagation(); onAssign(lead.id, e.target.value || null) }}
             style={{
               fontSize: 12, background: 'var(--bg3)', border: '1px solid var(--bg4)',
               borderRadius: 5, color: 'var(--text)', padding: '3px 6px',
@@ -668,17 +695,17 @@ function LeadList({ leads, reps, onDismiss, onAssign, onConvert }: {
           {/* Actions */}
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <button
-              onClick={() => onConvert(lead)}
+              onClick={(e) => { e.stopPropagation(); onConvert(lead) }}
               style={{
                 fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 6,
                 border: 'none', background: 'var(--accent)', color: '#fff',
                 cursor: 'pointer', whiteSpace: 'nowrap',
               }}
             >
-              Convert to Opportunity
+              Convert
             </button>
             <button
-              onClick={() => onDismiss(lead.id)}
+              onClick={(e) => { e.stopPropagation(); onDismiss(lead.id) }}
               style={{
                 fontSize: 12, padding: '5px 10px', borderRadius: 6,
                 border: '1px solid var(--bg4)', background: 'transparent',
