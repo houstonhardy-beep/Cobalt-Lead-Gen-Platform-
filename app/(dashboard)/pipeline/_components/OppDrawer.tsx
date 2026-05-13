@@ -43,6 +43,8 @@ interface OppDetail {
   estimatedRevenue: number | null
   weightedValue: number | null
   probabilityPercent: number | null
+  expectedCloseDate: string | null
+  notes: string | null
   jobSiteCity: string | null
   jobSiteState: string | null
   createdAt: string
@@ -55,6 +57,15 @@ interface OppDetail {
   stageHistory: StageHistoryEntry[]
   activities: ActivityEntry[]
   outreach: OutreachEntry[]
+}
+
+interface EditFields {
+  jobType:           string
+  productCategory:   string
+  leadSource:        string
+  estimatedRevenue:  string
+  expectedCloseDate: string
+  notes:             string
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -78,39 +89,52 @@ const OPEN_STAGES = [
   'QUALIFIED', 'PROPOSAL', 'PROPOSAL_SENT', 'NEGOTIATION',
 ]
 
-const JOB_TYPE_LABEL: Record<string, string> = {
-  NEW_CONSTRUCTION:   'New Construction',
-  MAC:                'MAC',
-  INSTALL:            'Install',
-  BOX_SALE:           'Box Sale',
-  UPGRADE_REFRESH:    'Upgrade / Refresh',
-  RFP_BID:            'RFP / Bid',
-  SERVICE_ON_DEMAND:  'Service (On Demand)',
-  SERVICE_CONTRACTED: 'Service (Contracted)',
-}
+const JOB_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: '',                  label: '— None —' },
+  { value: 'NEW_CONSTRUCTION',  label: 'New Construction' },
+  { value: 'MAC',               label: 'MAC' },
+  { value: 'INSTALL',           label: 'Install' },
+  { value: 'BOX_SALE',          label: 'Box Sale' },
+  { value: 'UPGRADE_REFRESH',   label: 'Upgrade / Refresh' },
+  { value: 'RFP_BID',           label: 'RFP / Bid' },
+  { value: 'SERVICE_ON_DEMAND', label: 'Service (On Demand)' },
+  { value: 'SERVICE_CONTRACTED',label: 'Service (Contracted)' },
+]
 
-const PRODUCT_CATEGORY_LABEL: Record<string, string> = {
-  ACCESS_CONTROL:            'Access Control',
-  VIDEO_SURVEILLANCE:        'Video Surveillance',
-  INTRUSION_ALARM:           'Intrusion Alarm',
-  INTERCOM_AUDIO:            'Intercom / Audio',
-  NETWORKING_INFRASTRUCTURE: 'Networking',
-  FIRE_LIFE_SAFETY:          'Fire / Life Safety',
-  STRUCTURED_CABLING:        'Structured Cabling',
-  INTEGRATED_SYSTEMS:        'Integrated Systems',
-  SYSTEMS_OTHER:             'Systems (Other)',
-}
+const PRODUCT_CATEGORY_OPTIONS: { value: string; label: string }[] = [
+  { value: '',                         label: '— None —' },
+  { value: 'ACCESS_CONTROL',           label: 'Access Control' },
+  { value: 'VIDEO_SURVEILLANCE',       label: 'Video Surveillance' },
+  { value: 'INTRUSION_ALARM',          label: 'Intrusion Alarm' },
+  { value: 'INTERCOM_AUDIO',           label: 'Intercom / Audio' },
+  { value: 'NETWORKING_INFRASTRUCTURE',label: 'Networking' },
+  { value: 'FIRE_LIFE_SAFETY',         label: 'Fire / Life Safety' },
+  { value: 'STRUCTURED_CABLING',       label: 'Structured Cabling' },
+  { value: 'INTEGRATED_SYSTEMS',       label: 'Integrated Systems' },
+  { value: 'SYSTEMS_OTHER',            label: 'Systems (Other)' },
+]
 
-const LEAD_SOURCE_LABEL: Record<string, string> = {
-  REFERRAL:          'Referral',
-  SAM_GOV:           'SAM.gov',
-  RFP_BID_BOARD:     'RFP / Bid Board',
-  DODGE_DATA:        'Dodge Data',
-  COLD_OUTREACH:     'Cold Outreach',
-  INBOUND_WEB:       'Inbound Web',
-  EXISTING_CUSTOMER: 'Existing Customer',
-  PARTNER_VENDOR:    'Partner / Vendor',
-}
+const LEAD_SOURCE_OPTIONS: { value: string; label: string }[] = [
+  { value: '',                  label: '— None —' },
+  { value: 'REFERRAL',          label: 'Referral' },
+  { value: 'SAM_GOV',           label: 'SAM.gov' },
+  { value: 'RFP_BID_BOARD',     label: 'RFP / Bid Board' },
+  { value: 'DODGE_DATA',        label: 'Dodge Data' },
+  { value: 'COLD_OUTREACH',     label: 'Cold Outreach' },
+  { value: 'INBOUND_WEB',       label: 'Inbound Web' },
+  { value: 'EXISTING_CUSTOMER', label: 'Existing Customer' },
+  { value: 'PARTNER_VENDOR',    label: 'Partner / Vendor' },
+]
+
+const JOB_TYPE_LABEL: Record<string, string> = Object.fromEntries(
+  JOB_TYPE_OPTIONS.filter((o) => o.value).map((o) => [o.value, o.label])
+)
+const PRODUCT_CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
+  PRODUCT_CATEGORY_OPTIONS.filter((o) => o.value).map((o) => [o.value, o.label])
+)
+const LEAD_SOURCE_LABEL: Record<string, string> = Object.fromEntries(
+  LEAD_SOURCE_OPTIONS.filter((o) => o.value).map((o) => [o.value, o.label])
+)
 
 const OUTREACH_TYPE_LABEL: Record<string, string> = {
   COLD_EMAIL: 'Email',
@@ -169,6 +193,17 @@ function parseActivityType(action: string): { type: string; description: string 
   return { type: 'NOTE', description: action }
 }
 
+function detailToEditFields(d: OppDetail): EditFields {
+  return {
+    jobType:           d.jobType           ?? '',
+    productCategory:   d.productCategory   ?? '',
+    leadSource:        d.leadSource        ?? '',
+    estimatedRevenue:  d.estimatedRevenue  !== null ? String(d.estimatedRevenue) : '',
+    expectedCloseDate: d.expectedCloseDate ?? '',
+    notes:             d.notes             ?? '',
+  }
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -203,6 +238,34 @@ function StageBadge({ stage }: { stage: string | null }) {
   )
 }
 
+const inputStyle: React.CSSProperties = {
+  fontSize: 12,
+  background: 'var(--bg3)',
+  border: '1px solid var(--bg4)',
+  borderRadius: 5,
+  color: 'var(--text)',
+  padding: '4px 8px',
+  width: '100%',
+  boxSizing: 'border-box',
+  outline: 'none',
+}
+
+const selStyle: React.CSSProperties = {
+  ...inputStyle,
+  cursor: 'pointer',
+}
+
+function EditField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  )
+}
+
 // ─── OppDrawer ────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -212,21 +275,21 @@ interface Props {
 }
 
 export function OppDrawer({ oppId, onClose, onRowPatch }: Props) {
-  const [detail, setDetail]         = useState<OppDetail | null>(null)
-  const [loading, setLoading]       = useState(false)
+  const [detail, setDetail]               = useState<OppDetail | null>(null)
+  const [loading, setLoading]             = useState(false)
   const [stageChanging, setStageChanging] = useState(false)
 
   // Activity form state
-  const [actType, setActType]       = useState('CALL')
-  const [actDesc, setActDesc]       = useState('')
-  const [actDate, setActDate]       = useState(todayIso())
+  const [actType,       setActType]       = useState('CALL')
+  const [actDesc,       setActDesc]       = useState('')
+  const [actDate,       setActDate]       = useState(todayIso())
   const [actSubmitting, setActSubmitting] = useState(false)
-  const [actError, setActError]     = useState('')
+  const [actError,      setActError]      = useState('')
 
   const fetchDetail = useCallback(async (id: string) => {
     setLoading(true)
     try {
-      const res  = await fetch(`/api/opportunities/${id}`)
+      const res = await fetch(`/api/opportunities/${id}`)
       if (res.ok) setDetail(await res.json())
     } finally {
       setLoading(false)
@@ -292,33 +355,21 @@ export function OppDrawer({ oppId, onClose, onRowPatch }: Props) {
       <div
         onClick={onClose}
         style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.35)',
-          zIndex: 50,
-          opacity: open ? 1 : 0,
-          pointerEvents: open ? 'auto' : 'none',
-          transition: 'opacity 0.2s',
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)',
+          zIndex: 50, opacity: open ? 1 : 0,
+          pointerEvents: open ? 'auto' : 'none', transition: 'opacity 0.2s',
         }}
       />
 
       {/* Panel */}
       <div
         style={{
-          position: 'fixed',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: 480,
-          background: 'var(--bg2)',
-          borderLeft: '1px solid var(--bg4)',
-          zIndex: 51,
-          transform: open ? 'translateX(0)' : 'translateX(100%)',
+          position: 'fixed', top: 0, right: 0, bottom: 0, width: 480,
+          background: 'var(--bg2)', borderLeft: '1px solid var(--bg4)',
+          zIndex: 51, transform: open ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.22s cubic-bezier(0.4,0,0.2,1)',
           boxShadow: '-8px 0 32px rgba(0,0,0,0.35)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}
       >
         {open && (
@@ -341,6 +392,7 @@ export function OppDrawer({ oppId, onClose, onRowPatch }: Props) {
               onActDescChange={setActDesc}
               onActDateChange={setActDate}
               onLogActivity={handleLogActivity}
+              onRefetch={() => fetchDetail(detail.id)}
             />
           )
         )}
@@ -365,17 +417,26 @@ interface DrawerBodyProps {
   onActDescChange: (v: string) => void
   onActDateChange: (v: string) => void
   onLogActivity: (e: React.FormEvent) => void
+  onRefetch: () => void
 }
 
 function DrawerBody({
   detail, stageChanging,
   actType, actDesc, actDate, actSubmitting, actError,
   onClose, onStageChange, onActTypeChange, onActDescChange, onActDateChange, onLogActivity,
+  onRefetch,
 }: DrawerBodyProps) {
   const needsAttention = detail.daysInStage > 45
   const [pendingStage, setPendingStage] = useState(detail.stage ?? '')
-  const [stageSaved, setStageSaved]     = useState(false)
+  const [stageSaved,   setStageSaved]   = useState(false)
   const prevChanging = useRef(false)
+
+  // Edit mode state
+  const [editMode,    setEditMode]    = useState(false)
+  const [editFields,  setEditFields]  = useState<EditFields>(() => detailToEditFields(detail))
+  const [saving,      setSaving]      = useState(false)
+  const [editSaved,   setEditSaved]   = useState(false)
+  const [editError,   setEditError]   = useState('')
 
   useEffect(() => { setPendingStage(detail.stage ?? '') }, [detail.stage])
 
@@ -387,6 +448,53 @@ function DrawerBody({
     }
     prevChanging.current = stageChanging
   }, [stageChanging])
+
+  function enterEdit() {
+    setEditFields(detailToEditFields(detail))
+    setEditError('')
+    setEditSaved(false)
+    setEditMode(true)
+  }
+
+  function cancelEdit() {
+    setEditMode(false)
+    setEditError('')
+  }
+
+  async function saveEdit() {
+    setSaving(true)
+    setEditError('')
+    try {
+      const body: Record<string, unknown> = {
+        jobType:           editFields.jobType           || null,
+        productCategory:   editFields.productCategory   || null,
+        leadSource:        editFields.leadSource        || null,
+        estimatedRevenue:  editFields.estimatedRevenue  ? parseFloat(editFields.estimatedRevenue) : null,
+        expectedCloseDate: editFields.expectedCloseDate || null,
+        notes:             editFields.notes             || null,
+      }
+      const res = await fetch(`/api/opportunities/${detail.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        setEditMode(false)
+        setEditSaved(true)
+        setTimeout(() => setEditSaved(false), 2500)
+        onRefetch()
+      } else {
+        const data = await res.json() as { error?: string }
+        setEditError(data.error ?? 'Save failed')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function setField<K extends keyof EditFields>(k: K, v: EditFields[K]) {
+    setEditFields((prev) => ({ ...prev, [k]: v }))
+  }
 
   const sel: React.CSSProperties = {
     fontSize: 13,
@@ -406,22 +514,51 @@ function DrawerBody({
         display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
         padding: '18px 20px 16px', borderBottom: '1px solid var(--bg4)', flexShrink: 0,
       }}>
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', lineHeight: 1.3, marginBottom: 3 }}>
             {detail.title}
           </p>
           <p style={{ fontSize: 12, color: 'var(--text3)' }}>{detail.company}</p>
         </div>
-        <button
-          onClick={onClose}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 28, height: 28, borderRadius: 6, border: '1px solid var(--bg4)',
-            background: 'transparent', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, flexShrink: 0,
-          }}
-        >
-          ×
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {editSaved && (
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#34d399' }}>✓ Saved</span>
+          )}
+          {/* Pencil edit button */}
+          <button
+            onClick={editMode ? cancelEdit : enterEdit}
+            title={editMode ? 'Cancel edit' : 'Edit details'}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, borderRadius: 6,
+              border: editMode ? '1px solid var(--accent)' : '1px solid var(--bg4)',
+              background: editMode ? 'rgba(var(--accent-rgb,26,86,255),0.08)' : 'transparent',
+              color: editMode ? 'var(--accent)' : 'var(--text3)',
+              cursor: 'pointer',
+            }}
+          >
+            {editMode ? (
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M3 3l10 10M13 3L3 13" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M11 2l3 3-9 9H2v-3L11 2z" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, borderRadius: 6, border: '1px solid var(--bg4)',
+              background: 'transparent', color: 'var(--text3)', cursor: 'pointer', fontSize: 16,
+            }}
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {/* ── Scrollable body ── */}
@@ -429,7 +566,7 @@ function DrawerBody({
 
         {/* ── Section 1: Overview ── */}
         <Section title="Overview">
-          {/* Stage + inline selector */}
+          {/* Stage row — always visible */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <StageBadge stage={detail.stage} />
@@ -471,26 +608,117 @@ function DrawerBody({
             </div>
           </div>
 
-          <Field label="Est. Value">{fmt$(detail.estimatedRevenue)}</Field>
-          <Field label="Weighted">
-            {fmt$(detail.weightedValue)}
-            {detail.probabilityPercent !== null && (
-              <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 4 }}>({detail.probabilityPercent}%)</span>
-            )}
-          </Field>
-          <Field label="Days in Stage">
-            <span style={{ color: needsAttention ? '#fbbf24' : 'var(--text)' }}>{detail.daysInStage}d</span>
-          </Field>
-          <Field label="Days in Pipeline">{detail.daysInPipeline}d</Field>
-          {detail.jobType        && <Field label="Job Type">{JOB_TYPE_LABEL[detail.jobType] ?? detail.jobType}</Field>}
-          {detail.productCategory && <Field label="Product">{PRODUCT_CATEGORY_LABEL[detail.productCategory] ?? detail.productCategory}</Field>}
-          {detail.leadSource     && <Field label="Lead Source">{LEAD_SOURCE_LABEL[detail.leadSource] ?? detail.leadSource}</Field>}
-          {detail.repName        && <Field label="Rep">{detail.repName}</Field>}
-          {(detail.jobSiteCity || detail.jobSiteState) && (
-            <Field label="Job Site">{[detail.jobSiteCity, detail.jobSiteState].filter(Boolean).join(', ')}</Field>
+          {/* Read-only fields */}
+          {!editMode && (
+            <>
+              <Field label="Est. Value">
+                {detail.estimatedRevenue !== null ? fmt$(detail.estimatedRevenue) : '—'}
+              </Field>
+              <Field label="Weighted">
+                {fmt$(detail.weightedValue)}
+                {detail.probabilityPercent !== null && (
+                  <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 4 }}>({detail.probabilityPercent}%)</span>
+                )}
+              </Field>
+              <Field label="Days in Stage">
+                <span style={{ color: needsAttention ? '#fbbf24' : 'var(--text)' }}>{detail.daysInStage}d</span>
+              </Field>
+              <Field label="Days in Pipeline">{detail.daysInPipeline}d</Field>
+              <Field label="Close Date">{detail.expectedCloseDate ? fmtDate(detail.expectedCloseDate) : '—'}</Field>
+              <Field label="Job Type">{detail.jobType ? (JOB_TYPE_LABEL[detail.jobType] ?? detail.jobType) : '—'}</Field>
+              <Field label="Product">{detail.productCategory ? (PRODUCT_CATEGORY_LABEL[detail.productCategory] ?? detail.productCategory) : '—'}</Field>
+              <Field label="Lead Source">{detail.leadSource ? (LEAD_SOURCE_LABEL[detail.leadSource] ?? detail.leadSource) : '—'}</Field>
+              {detail.repName && <Field label="Rep">{detail.repName}</Field>}
+              {(detail.jobSiteCity || detail.jobSiteState) && (
+                <Field label="Job Site">{[detail.jobSiteCity, detail.jobSiteState].filter(Boolean).join(', ')}</Field>
+              )}
+              <Field label="Created">{fmtDate(detail.createdAt)}</Field>
+              <Field label="Updated">{fmtDate(detail.updatedAt)}</Field>
+              {detail.notes && (
+                <div style={{ marginTop: 8 }}>
+                  <p style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Notes</p>
+                  <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5, margin: 0 }}>{detail.notes}</p>
+                </div>
+              )}
+            </>
           )}
-          <Field label="Created">{fmtDate(detail.createdAt)}</Field>
-          <Field label="Updated">{fmtDate(detail.updatedAt)}</Field>
+
+          {/* Edit form */}
+          {editMode && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+                <EditField label="Job Type">
+                  <select value={editFields.jobType} onChange={(e) => setField('jobType', e.target.value)} style={selStyle}>
+                    {JOB_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </EditField>
+                <EditField label="Product">
+                  <select value={editFields.productCategory} onChange={(e) => setField('productCategory', e.target.value)} style={selStyle}>
+                    {PRODUCT_CATEGORY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </EditField>
+                <EditField label="Lead Source">
+                  <select value={editFields.leadSource} onChange={(e) => setField('leadSource', e.target.value)} style={selStyle}>
+                    {LEAD_SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </EditField>
+                <EditField label="Est. Value ($)">
+                  <input
+                    type="number"
+                    value={editFields.estimatedRevenue}
+                    onChange={(e) => setField('estimatedRevenue', e.target.value)}
+                    placeholder="0"
+                    style={inputStyle}
+                  />
+                </EditField>
+              </div>
+              <EditField label="Expected Close Date">
+                <input
+                  type="date"
+                  value={editFields.expectedCloseDate}
+                  onChange={(e) => setField('expectedCloseDate', e.target.value)}
+                  style={inputStyle}
+                />
+              </EditField>
+              <EditField label="Notes">
+                <textarea
+                  value={editFields.notes}
+                  onChange={(e) => setField('notes', e.target.value)}
+                  placeholder="Add notes about this opportunity…"
+                  rows={3}
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                />
+              </EditField>
+
+              {editError && (
+                <p style={{ fontSize: 12, color: '#f87171', marginBottom: 8 }}>{editError}</p>
+              )}
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={saveEdit}
+                  disabled={saving}
+                  style={{
+                    fontSize: 13, fontWeight: 600, padding: '6px 16px', borderRadius: 6,
+                    border: 'none', background: 'var(--accent)', color: '#fff',
+                    cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+                  }}
+                >
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={cancelEdit}
+                  style={{
+                    fontSize: 13, padding: '6px 14px', borderRadius: 6,
+                    border: '1px solid var(--bg4)', background: 'var(--bg3)',
+                    color: 'var(--text2)', cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </Section>
 
         {/* ── Section 2: Stage History ── */}
@@ -504,12 +732,10 @@ function DrawerBody({
                 const isLast = i === detail.stageHistory.length - 1
                 return (
                   <div key={s.id} style={{ display: 'flex', gap: 12, paddingBottom: isLast ? 0 : 10 }}>
-                    {/* Timeline dot + line */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 16 }}>
                       <div style={{ width: 10, height: 10, borderRadius: '50%', background: meta.color, flexShrink: 0, marginTop: 3 }} />
                       {!isLast && <div style={{ width: 2, flex: 1, background: 'var(--bg4)', marginTop: 4 }} />}
                     </div>
-                    {/* Content */}
                     <div style={{ paddingBottom: isLast ? 0 : 4 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: meta.color }}>{meta.label}</span>
@@ -593,9 +819,7 @@ function DrawerBody({
                   }}
                 />
               </div>
-              {actError && (
-                <p style={{ fontSize: 12, color: '#f87171' }}>{actError}</p>
-              )}
+              {actError && <p style={{ fontSize: 12, color: '#f87171' }}>{actError}</p>}
               <button
                 type="submit"
                 disabled={actSubmitting || !actDesc.trim()}
@@ -621,15 +845,9 @@ function DrawerBody({
                 const { type, description } = parseActivityType(a.action)
                 const color = ACTIVITY_COLOR[type] ?? '#94a3b8'
                 return (
-                  <div key={a.id} style={{
-                    padding: '10px 12px', borderRadius: 8,
-                    background: 'var(--bg3)', border: '1px solid var(--bg4)',
-                  }}>
+                  <div key={a.id} style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg3)', border: '1px solid var(--bg4)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
-                        background: `${color}1a`, color, border: `1px solid ${color}33`,
-                      }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: `${color}1a`, color, border: `1px solid ${color}33` }}>
                         {ACTIVITY_TYPES.find((t) => t.value === type)?.label ?? type}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text3)' }}>
@@ -653,15 +871,9 @@ function DrawerBody({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {detail.outreach.map((o) => (
-                <div key={o.id} style={{
-                  padding: '10px 12px', borderRadius: 8,
-                  background: 'var(--bg3)', border: '1px solid var(--bg4)',
-                }}>
+                <div key={o.id} style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg3)', border: '1px solid var(--bg4)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
-                      background: 'rgba(96,165,250,0.12)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.25)',
-                    }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(96,165,250,0.12)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.25)' }}>
                       {OUTREACH_TYPE_LABEL[o.type] ?? o.type}
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text3)' }}>

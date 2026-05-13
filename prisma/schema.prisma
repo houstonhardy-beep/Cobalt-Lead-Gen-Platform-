@@ -655,6 +655,8 @@ model Signal {
   isRead          Boolean       @default(false)
   contactName     String?
   contactTitle    String?
+  jobType         JobType?
+  productCategory ProductCategory?
 
   tenant        Tenant  @relation(fields: [tenantId], references: [id])
   assignedTo    User?   @relation("AssignedSignals", fields: [assignedToId], references: [id])

@@ -29,10 +29,12 @@ interface Signal {
   contactTitle:    string | null
   convertedLeadId: string | null
   assignedTo:      { id: string; name: string | null } | null
+  jobType:         string | null
+  productCategory: string | null
 }
 
 interface ConvertedMeta {
-  company: string
+  company:       string
   opportunityId: string
 }
 
@@ -70,6 +72,38 @@ const PRIORITY_COLOR: Record<SignalPriority, string> = {
 const PRIORITY_ORDER: Record<SignalPriority, number> = { HOT: 0, WARM: 1, COLD: 2 }
 const STATUS_ORDER:   Record<SignalStatus, number>   = { NEW: 0, SAVED: 1, CONVERTED: 2, DISMISSED: 3 }
 
+const JOB_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: '',                   label: '— None —' },
+  { value: 'NEW_CONSTRUCTION',   label: 'New Construction' },
+  { value: 'MAC',                label: 'MAC' },
+  { value: 'INSTALL',            label: 'Install' },
+  { value: 'BOX_SALE',           label: 'Box Sale' },
+  { value: 'UPGRADE_REFRESH',    label: 'Upgrade / Refresh' },
+  { value: 'RFP_BID',            label: 'RFP / Bid' },
+  { value: 'SERVICE_ON_DEMAND',  label: 'Service (On Demand)' },
+  { value: 'SERVICE_CONTRACTED', label: 'Service (Contracted)' },
+]
+
+const PRODUCT_CATEGORY_OPTIONS: { value: string; label: string }[] = [
+  { value: '',                          label: '— None —' },
+  { value: 'ACCESS_CONTROL',            label: 'Access Control' },
+  { value: 'VIDEO_SURVEILLANCE',        label: 'Video Surveillance' },
+  { value: 'INTRUSION_ALARM',           label: 'Intrusion Alarm' },
+  { value: 'INTERCOM_AUDIO',            label: 'Intercom / Audio' },
+  { value: 'NETWORKING_INFRASTRUCTURE', label: 'Networking' },
+  { value: 'FIRE_LIFE_SAFETY',          label: 'Fire / Life Safety' },
+  { value: 'STRUCTURED_CABLING',        label: 'Structured Cabling' },
+  { value: 'INTEGRATED_SYSTEMS',        label: 'Integrated Systems' },
+  { value: 'SYSTEMS_OTHER',             label: 'Systems (Other)' },
+]
+
+const JOB_TYPE_LABEL: Record<string, string> = Object.fromEntries(
+  JOB_TYPE_OPTIONS.filter((o) => o.value).map((o) => [o.value, o.label])
+)
+const PRODUCT_CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
+  PRODUCT_CATEGORY_OPTIONS.filter((o) => o.value).map((o) => [o.value, o.label])
+)
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt$(v: number | null | undefined) {
@@ -90,8 +124,7 @@ function relativeDate(iso: string) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SignalQueueClient({ signals: initialSignals, reps, currentUserId, currentUserRole }: Props) {
-  const [signals, setSignals] = useState<Signal[]>(initialSignals)
-  // convertedMeta stores company + opportunityId for newly-converted signals this session
+  const [signals, setSignals]         = useState<Signal[]>(initialSignals)
   const [convertedMeta, setConvertedMeta] = useState<Record<string, ConvertedMeta>>({})
 
   const [search,         setSearch]         = useState('')
@@ -204,10 +237,10 @@ export function SignalQueueClient({ signals: initialSignals, reps, currentUserId
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Active Signals', value: stats.total,             color: 'var(--text)'    },
-          { label: 'New',            value: stats.newCount,          color: 'var(--accent)'  },
-          { label: 'Hot',            value: stats.hotCount,          color: '#dc2626'        },
-          { label: 'Est. Pipeline',  value: fmt$(stats.totalValue) ?? '—', color: 'var(--success)' },
+          { label: 'Active Signals', value: stats.total,                  color: 'var(--text)'    },
+          { label: 'New',            value: stats.newCount,               color: 'var(--accent)'  },
+          { label: 'Hot',            value: stats.hotCount,               color: '#dc2626'        },
+          { label: 'Est. Pipeline',  value: fmt$(stats.totalValue) ?? '—',color: 'var(--success)' },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-lg p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bg4)' }}>
             <p className="text-xs mb-1" style={{ color: 'var(--text3)' }}>{label}</p>
@@ -226,22 +259,13 @@ export function SignalQueueClient({ signals: initialSignals, reps, currentUserId
           className="text-sm px-3 py-1.5 rounded-md"
           style={{ background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--bg4)', minWidth: 180 }}
         />
-
         <FilterChips
           label="Status"
           options={['ACTIVE', 'NEW', 'SAVED', 'CONVERTED', 'DISMISSED', 'ALL']}
           value={statusFilter}
           onChange={(v) => setStatusFilter(v as StatusFilter)}
-          labelMap={{
-            ACTIVE:    'New + Saved',
-            NEW:       'New',
-            SAVED:     'Saved',
-            CONVERTED: 'Converted',
-            DISMISSED: 'Dismissed',
-            ALL:       'All',
-          }}
+          labelMap={{ ACTIVE: 'New + Saved', NEW: 'New', SAVED: 'Saved', CONVERTED: 'Converted', DISMISSED: 'Dismissed', ALL: 'All' }}
         />
-
         <FilterChips
           label="Priority"
           options={['ALL', 'HOT', 'WARM', 'COLD']}
@@ -249,22 +273,13 @@ export function SignalQueueClient({ signals: initialSignals, reps, currentUserId
           onChange={(v) => setPriorityFilter(v as SignalPriority | 'ALL')}
           labelMap={{ ALL: 'All Priority', HOT: '🔴 Hot', WARM: '🟡 Warm', COLD: 'Cold' }}
         />
-
         <FilterChips
           label="Type"
           options={['ALL', 'CONSTRUCTION_PERMIT', 'GOVERNMENT_RFP', 'CUSTOMER_SIGNAL', 'NEWS', 'PERSONNEL_CHANGE']}
           value={typeFilter}
           onChange={(v) => setTypeFilter(v as SignalType | 'ALL')}
-          labelMap={{
-            ALL:                 'All Types',
-            CONSTRUCTION_PERMIT: 'Permits',
-            GOVERNMENT_RFP:      'RFPs',
-            CUSTOMER_SIGNAL:     'Customers',
-            NEWS:                'News',
-            PERSONNEL_CHANGE:    'Personnel',
-          }}
+          labelMap={{ ALL: 'All Types', CONSTRUCTION_PERMIT: 'Permits', GOVERNMENT_RFP: 'RFPs', CUSTOMER_SIGNAL: 'Customers', NEWS: 'News', PERSONNEL_CHANGE: 'Personnel' }}
         />
-
         <span className="ml-auto text-xs" style={{ color: 'var(--text3)' }}>
           {filtered.length} signal{filtered.length !== 1 ? 's' : ''}
         </span>
@@ -292,7 +307,7 @@ export function SignalQueueClient({ signals: initialSignals, reps, currentUserId
               onDismiss={() => dismissSignal(signal.id)}
               onRestore={() => restoreSignal(signal.id)}
               onConvert={() => convertToLead(signal.id)}
-              onAssign={(userId) => patch(signal.id, { assignedToId: userId })}
+              onPatch={(body) => patch(signal.id, body)}
             />
           ))}
         </div>
@@ -303,12 +318,7 @@ export function SignalQueueClient({ signals: initialSignals, reps, currentUserId
 
 // ── FilterChips ───────────────────────────────────────────────────────────────
 
-function FilterChips({
-  options,
-  value,
-  onChange,
-  labelMap,
-}: {
+function FilterChips({ options, value, onChange, labelMap }: {
   label: string
   options: string[]
   value: string
@@ -338,19 +348,9 @@ function FilterChips({
 // ── SignalCard ────────────────────────────────────────────────────────────────
 
 function SignalCard({
-  signal,
-  reps,
-  expanded,
-  converting,
-  convertedMeta,
-  currentUserId,
-  currentUserRole,
-  onToggle,
-  onSave,
-  onDismiss,
-  onRestore,
-  onConvert,
-  onAssign,
+  signal, reps, expanded, converting, convertedMeta,
+  currentUserId, currentUserRole,
+  onToggle, onSave, onDismiss, onRestore, onConvert, onPatch,
 }: {
   signal:          Signal
   reps:            { id: string; name: string | null }[]
@@ -364,14 +364,43 @@ function SignalCard({
   onDismiss:       () => void
   onRestore:       () => void
   onConvert:       () => void
-  onAssign:        (userId: string) => void
+  onPatch:         (body: object) => void
 }) {
   const isDismissed  = signal.status === 'DISMISSED'
   const isConverted  = signal.status === 'CONVERTED'
   const isActionable = signal.status === 'NEW' || signal.status === 'SAVED'
   const isAdmin      = currentUserRole === 'TENANT_ADMIN' || currentUserRole === 'COBALT_SUPER_ADMIN'
 
-  const cardOpacity = isConverted ? 0.75 : isDismissed ? 0.55 : 1
+  // Local state for inline editable fields (mirrors signal, kept in sync via onPatch)
+  const [localValue, setLocalValue]     = useState(signal.estimatedValue !== null ? String(signal.estimatedValue) : '')
+  const [localJobType, setLocalJobType]           = useState(signal.jobType         ?? '')
+  const [localProductCategory, setLocalProductCategory] = useState(signal.productCategory ?? '')
+
+  const inlineInputStyle: React.CSSProperties = {
+    fontSize: 12,
+    background: 'var(--bg3)',
+    border: '1px solid var(--bg4)',
+    borderRadius: 5,
+    color: 'var(--text)',
+    padding: '4px 8px',
+    outline: 'none',
+  }
+
+  function handleValueBlur() {
+    const parsed = localValue === '' ? null : parseFloat(localValue)
+    if (parsed === signal.estimatedValue) return
+    onPatch({ estimatedValue: parsed })
+  }
+
+  function handleJobTypeChange(v: string) {
+    setLocalJobType(v)
+    onPatch({ jobType: v || null })
+  }
+
+  function handleProductCategoryChange(v: string) {
+    setLocalProductCategory(v)
+    onPatch({ productCategory: v || null })
+  }
 
   return (
     <div
@@ -379,14 +408,11 @@ function SignalCard({
       style={{
         background: 'var(--bg2)',
         border:     `1px solid ${expanded ? 'var(--accent)' : 'var(--bg4)'}`,
-        opacity:    cardOpacity,
+        opacity:    isConverted ? 0.75 : isDismissed ? 0.55 : 1,
       }}
     >
-      {/* Card header — always visible */}
-      <button
-        className="w-full text-left p-4 flex items-start gap-3"
-        onClick={onToggle}
-      >
+      {/* Card header */}
+      <button className="w-full text-left p-4 flex items-start gap-3" onClick={onToggle}>
         {/* Unread dot */}
         <div className="flex-none pt-1" style={{ width: 8 }}>
           {!signal.isRead && signal.status === 'NEW' && (
@@ -394,15 +420,10 @@ function SignalCard({
           )}
         </div>
 
-        {/* Priority indicator */}
+        {/* Priority badge */}
         <div
           className="flex-none rounded text-xs font-bold px-1.5 py-0.5 mt-0.5"
-          style={{
-            background: PRIORITY_COLOR[signal.priority] + '20',
-            color:      PRIORITY_COLOR[signal.priority],
-            minWidth: 36,
-            textAlign: 'center',
-          }}
+          style={{ background: PRIORITY_COLOR[signal.priority] + '20', color: PRIORITY_COLOR[signal.priority], minWidth: 36, textAlign: 'center' }}
         >
           {signal.priority}
         </div>
@@ -410,83 +431,48 @@ function SignalCard({
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className="text-xs font-medium px-1.5 py-0.5 rounded"
-              style={{ background: TYPE_COLOR[signal.type] + '18', color: TYPE_COLOR[signal.type] }}
-            >
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: TYPE_COLOR[signal.type] + '18', color: TYPE_COLOR[signal.type] }}>
               {TYPE_LABEL[signal.type]}
             </span>
-
-            {/* Converted badge */}
             {isConverted && (
-              <span
-                className="text-xs font-medium px-1.5 py-0.5 rounded"
-                style={{ background: '#dcfce7', color: '#16a34a' }}
-              >
+              <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: '#dcfce7', color: '#16a34a' }}>
                 ✓ Converted
               </span>
             )}
-
-            {/* Dismissed badge */}
             {isDismissed && (
-              <span
-                className="text-xs px-1.5 py-0.5 rounded"
-                style={{ background: 'var(--bg3)', color: 'var(--text3)' }}
-              >
+              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg3)', color: 'var(--text3)' }}>
                 Dismissed
               </span>
             )}
-
-            {/* Saved badge */}
             {signal.status === 'SAVED' && (
-              <span
-                className="text-xs px-1.5 py-0.5 rounded"
-                style={{ background: 'var(--bg3)', color: 'var(--text2)' }}
-              >
+              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg3)', color: 'var(--text2)' }}>
                 Saved
               </span>
             )}
-
             <span className="text-xs" style={{ color: 'var(--text3)' }}>{relativeDate(signal.detectedAt)}</span>
-
-            {/* View Lead inline link (header) */}
             {isConverted && signal.convertedLeadId && (
-              <Link
-                href="/pipeline"
-                onClick={(e) => e.stopPropagation()}
-                className="text-xs"
-                style={{ color: 'var(--accent)' }}
-              >
+              <Link href="/pipeline" onClick={(e) => e.stopPropagation()} className="text-xs" style={{ color: 'var(--accent)' }}>
                 View Lead →
               </Link>
             )}
           </div>
 
-          <p className="text-sm font-medium mt-1 leading-snug" style={{ color: 'var(--text)' }}>
-            {signal.title}
-          </p>
+          <p className="text-sm font-medium mt-1 leading-snug" style={{ color: 'var(--text)' }}>{signal.title}</p>
 
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-            {signal.company && (
-              <span className="text-xs" style={{ color: 'var(--text3)' }}>{signal.company}</span>
-            )}
-            {signal.location && (
-              <span className="text-xs" style={{ color: 'var(--text3)' }}>· {signal.location}</span>
-            )}
-            {signal.estimatedValue && (
-              <span className="text-xs font-medium" style={{ color: 'var(--success)' }}>{fmt$(signal.estimatedValue)}</span>
-            )}
+            {signal.company && <span className="text-xs" style={{ color: 'var(--text3)' }}>{signal.company}</span>}
+            {signal.location && <span className="text-xs" style={{ color: 'var(--text3)' }}>· {signal.location}</span>}
+            {signal.estimatedValue && <span className="text-xs font-medium" style={{ color: 'var(--success)' }}>{fmt$(signal.estimatedValue)}</span>}
+            {signal.jobType && <span className="text-xs" style={{ color: 'var(--text3)' }}>· {JOB_TYPE_LABEL[signal.jobType] ?? signal.jobType}</span>}
+            {signal.productCategory && <span className="text-xs" style={{ color: 'var(--text3)' }}>· {PRODUCT_CATEGORY_LABEL[signal.productCategory] ?? signal.productCategory}</span>}
           </div>
         </div>
 
-        {/* Assigned rep (compact) */}
         {signal.assignedTo?.name && (
           <div className="flex-none text-xs hidden sm:block" style={{ color: 'var(--text3)' }}>
             {signal.assignedTo.name.split(' ')[0]}
           </div>
         )}
-
-        {/* Chevron */}
         <svg
           className="flex-none mt-1 transition-transform"
           style={{ transform: expanded ? 'rotate(180deg)' : '', color: 'var(--text3)' }}
@@ -504,7 +490,7 @@ function SignalCard({
             {/* Description */}
             <p className="text-sm leading-relaxed" style={{ color: 'var(--text2)' }}>{signal.description}</p>
 
-            {/* Meta row */}
+            {/* Meta */}
             <div className="flex flex-wrap gap-4 text-xs" style={{ color: 'var(--text3)' }}>
               {signal.sourceName && (
                 <span>
@@ -515,15 +501,69 @@ function SignalCard({
                 </span>
               )}
               {signal.contactName && (
-                <span>
-                  Contact:{' '}
-                  <strong style={{ color: 'var(--text2)' }}>{signal.contactName}</strong>
-                  {signal.contactTitle ? `, ${signal.contactTitle}` : ''}
-                </span>
+                <span>Contact: <strong style={{ color: 'var(--text2)' }}>{signal.contactName}</strong>{signal.contactTitle ? `, ${signal.contactTitle}` : ''}</span>
               )}
-              {signal.estimatedValue && (
-                <span>Est. value: <strong style={{ color: 'var(--success)' }}>{fmt$(signal.estimatedValue)}</strong></span>
-              )}
+            </div>
+
+            {/* Inline classification fields — editable (active signals) or read-only (converted/dismissed) */}
+            <div>
+              <p className="text-xs font-semibold uppercase mb-2" style={{ color: 'var(--text3)', letterSpacing: '0.05em' }}>Classification</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {/* Job Type */}
+                <div>
+                  <label className="text-xs block mb-1" style={{ color: 'var(--text3)' }}>Job Type</label>
+                  {isActionable ? (
+                    <select
+                      value={localJobType}
+                      onChange={(e) => handleJobTypeChange(e.target.value)}
+                      style={{ ...inlineInputStyle, width: '100%', cursor: 'pointer' }}
+                    >
+                      {JOB_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  ) : (
+                    <span className="text-xs" style={{ color: 'var(--text)' }}>
+                      {signal.jobType ? (JOB_TYPE_LABEL[signal.jobType] ?? signal.jobType) : '—'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Product Category */}
+                <div>
+                  <label className="text-xs block mb-1" style={{ color: 'var(--text3)' }}>Product</label>
+                  {isActionable ? (
+                    <select
+                      value={localProductCategory}
+                      onChange={(e) => handleProductCategoryChange(e.target.value)}
+                      style={{ ...inlineInputStyle, width: '100%', cursor: 'pointer' }}
+                    >
+                      {PRODUCT_CATEGORY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  ) : (
+                    <span className="text-xs" style={{ color: 'var(--text)' }}>
+                      {signal.productCategory ? (PRODUCT_CATEGORY_LABEL[signal.productCategory] ?? signal.productCategory) : '—'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Estimated Value */}
+                <div>
+                  <label className="text-xs block mb-1" style={{ color: 'var(--text3)' }}>Est. Value ($)</label>
+                  {isActionable ? (
+                    <input
+                      type="number"
+                      value={localValue}
+                      onChange={(e) => setLocalValue(e.target.value)}
+                      onBlur={handleValueBlur}
+                      placeholder="0"
+                      style={{ ...inlineInputStyle, width: '100%' }}
+                    />
+                  ) : (
+                    <span className="text-xs font-medium" style={{ color: 'var(--success)' }}>
+                      {fmt$(signal.estimatedValue) ?? '—'}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Assign rep (admins only) */}
@@ -532,14 +572,12 @@ function SignalCard({
                 <label className="text-xs" style={{ color: 'var(--text3)' }}>Assign to:</label>
                 <select
                   value={signal.assignedToId ?? ''}
-                  onChange={(e) => onAssign(e.target.value)}
+                  onChange={(e) => onPatch({ assignedToId: e.target.value || null })}
                   className="text-xs px-2 py-1 rounded"
                   style={{ background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--bg4)' }}
                 >
                   <option value="">Unassigned</option>
-                  {reps.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name ?? r.id}</option>
-                  ))}
+                  {reps.map((r) => <option key={r.id} value={r.id}>{r.name ?? r.id}</option>)}
                 </select>
               </div>
             )}
@@ -551,19 +589,11 @@ function SignalCard({
                   <ActionButton primary onClick={onConvert} disabled={converting}>
                     {converting ? 'Converting…' : 'Convert to Lead'}
                   </ActionButton>
-
-                  {signal.status === 'NEW' && (
-                    <ActionButton onClick={onSave}>Save</ActionButton>
-                  )}
-
+                  {signal.status === 'NEW' && <ActionButton onClick={onSave}>Save</ActionButton>}
                   <ActionButton onClick={onDismiss} danger>Dismiss</ActionButton>
                 </>
               )}
-
-              {isDismissed && (
-                <ActionButton onClick={onRestore}>Restore</ActionButton>
-              )}
-
+              {isDismissed && <ActionButton onClick={onRestore}>Restore</ActionButton>}
               {isConverted && (
                 <div className="flex items-center gap-3">
                   <span
@@ -572,16 +602,13 @@ function SignalCard({
                   >
                     ✓ Converted to Lead
                   </span>
-                  <Link
-                    href="/pipeline"
-                    className="text-xs"
-                    style={{ color: 'var(--accent)' }}
-                  >
+                  <Link href="/pipeline" className="text-xs" style={{ color: 'var(--accent)' }}>
                     View in Pipeline →
                   </Link>
                 </div>
               )}
             </div>
+
           </div>
         </div>
       )}
@@ -591,17 +618,11 @@ function SignalCard({
 
 // ── ActionButton ──────────────────────────────────────────────────────────────
 
-function ActionButton({
-  children,
-  onClick,
-  primary,
-  danger,
-  disabled,
-}: {
-  children: React.ReactNode
-  onClick:  () => void
-  primary?: boolean
-  danger?:  boolean
+function ActionButton({ children, onClick, primary, danger, disabled }: {
+  children:  React.ReactNode
+  onClick:   () => void
+  primary?:  boolean
+  danger?:   boolean
   disabled?: boolean
 }) {
   const baseStyle: React.CSSProperties = primary
