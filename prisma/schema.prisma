@@ -168,6 +168,27 @@ enum PeriodType {
   ANNUAL
 }
 
+enum SignalType {
+  CONSTRUCTION_PERMIT
+  GOVERNMENT_RFP
+  CUSTOMER_SIGNAL
+  NEWS
+  PERSONNEL_CHANGE
+}
+
+enum SignalPriority {
+  HOT
+  WARM
+  COLD
+}
+
+enum SignalStatus {
+  NEW
+  SAVED
+  CONVERTED
+  DISMISSED
+}
+
 // ─── TENANT ──────────────────────────────────────────────────────────────────
 
 model Tenant {
@@ -191,6 +212,7 @@ model Tenant {
   stageHistory       StageHistory[]
   customerLocations  CustomerLocation[]
   pipelineTargets    PipelineTarget[]
+  signals            Signal[]
 
   @@index([slug])
 }
@@ -221,6 +243,7 @@ model User {
   outreachLog     OutreachLog[]
   stageHistory    StageHistory[]
   pipelineTargets PipelineTarget[]
+  assignedSignals Signal[]         @relation("AssignedSignals")
 
   @@index([tenantId])
   @@index([email])
@@ -307,6 +330,7 @@ model Lead {
   notesList     Note[]
   outreachLog   OutreachLog[]
   opportunities Opportunity[]
+  convertedFrom Signal[]      @relation("ConvertedFromSignal")
 
   @@index([tenantId])
   @@index([tenantId, stage])
@@ -604,4 +628,41 @@ model PipelineTarget {
   @@index([tenantId])
   @@index([tenantId, period])
   @@index([userId])
+}
+
+// ─── SIGNAL QUEUE ─────────────────────────────────────────────────────────────
+// Inbound market signals: permits, RFPs, news, customer events, personnel changes.
+// Reps review, save, or convert signals directly into leads.
+
+model Signal {
+  id              String        @id @default(cuid())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  tenantId        String
+  type            SignalType
+  priority        SignalPriority
+  title           String
+  company         String?
+  location        String?
+  estimatedValue  Float?
+  description     String
+  sourceUrl       String?
+  sourceName      String?
+  detectedAt      DateTime
+  status          SignalStatus  @default(NEW)
+  assignedToId    String?
+  convertedLeadId String?
+  isRead          Boolean       @default(false)
+  contactName     String?
+  contactTitle    String?
+
+  tenant        Tenant  @relation(fields: [tenantId], references: [id])
+  assignedTo    User?   @relation("AssignedSignals", fields: [assignedToId], references: [id])
+  convertedLead Lead?   @relation("ConvertedFromSignal", fields: [convertedLeadId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, type])
+  @@index([tenantId, priority])
+  @@index([assignedToId])
 }

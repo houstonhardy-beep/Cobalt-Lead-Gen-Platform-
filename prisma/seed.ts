@@ -70,6 +70,7 @@ async function main() {
   await db.outreachLog.deleteMany({ where: { tenantId: lek.id } })
   await db.opportunity.deleteMany({ where: { tenantId: lek.id } })   // cascades → stageHistory, opportunityProduct
   await db.note.deleteMany({ where: { tenantId: lek.id } })
+  await db.signal.deleteMany({ where: { tenantId: lek.id } })
   await db.lead.deleteMany({ where: { tenantId: lek.id } })           // cascades → leadLog
   await db.customerLocation.deleteMany({ where: { tenantId: lek.id } })
   await db.customer.deleteMany({ where: { tenantId: lek.id } })
@@ -722,6 +723,211 @@ async function main() {
     db.pipelineTarget.create({ data: { tenantId: lek.id, userId: lekRep.id,   stage: null, period: '2026-05', periodType: 'MONTHLY',   targetValue: 100_000 } }),
   ])
   console.log('  ✓ Pipeline targets created (12)')
+
+  // ── Signal Queue (20 signals) ──────────────────────────────────────────────
+
+  const signals: Parameters<typeof db.signal.create>[0]['data'][] = [
+    // ── Construction Permits (5) ──────────────────────────────────────────────
+    {
+      tenantId: lek.id, type: 'CONSTRUCTION_PERMIT', priority: 'HOT',
+      title: 'Hoover Medical Campus — $62M New Construction Permit Filed',
+      company: 'Hoover Medical Partners LLC', location: 'Hoover, AL',
+      estimatedValue: 280000,
+      description: 'Permit #HOO-2026-0441 filed for a 4-story, 185,000 sq ft medical office building on Valleydale Road. Security, access control, and nurse call estimated at 4–5% of total project value. GC is Brasfield & Gorrie.',
+      sourceName: 'Jefferson County Permit Office', sourceUrl: 'https://permits.jeffco.al.gov',
+      detectedAt: new Date('2026-05-10T08:00:00Z'), status: 'NEW', isRead: false,
+      assignedToId: lekAdmin.id, contactName: 'Steve Holcomb', contactTitle: 'Project Manager, B&G',
+    },
+    {
+      tenantId: lek.id, type: 'CONSTRUCTION_PERMIT', priority: 'HOT',
+      title: 'Pensacola Logistics Hub — 220,000 sq ft Warehouse Breaking Ground',
+      company: 'Gulf Coast Industrial Properties', location: 'Pensacola, FL',
+      estimatedValue: 165000,
+      description: 'Permit filed for large-scale distribution center near I-10/Exit 7. Access control, IP cameras, and perimeter detection for 3 buildings. Owner rep is Saunders Construction.',
+      sourceName: 'Escambia County Building Dept', sourceUrl: 'https://myescambia.com/permits',
+      detectedAt: new Date('2026-05-09T10:30:00Z'), status: 'NEW', isRead: false,
+      assignedToId: lekRep.id,
+    },
+    {
+      tenantId: lek.id, type: 'CONSTRUCTION_PERMIT', priority: 'WARM',
+      title: 'Auburn Research Park — Phase 3 Lab Buildings (2 of 4)',
+      company: 'Auburn University Research Foundation', location: 'Auburn, AL',
+      estimatedValue: 120000,
+      description: 'Two research lab buildings breaking ground in Research Park Blvd. Combined footprint ~65,000 sq ft. Security scoping expected in Q3 per facilities RFP calendar.',
+      sourceName: 'Lee County Permits', sourceUrl: 'https://leecountyalabama.gov',
+      detectedAt: new Date('2026-05-08T09:00:00Z'), status: 'SAVED', isRead: true,
+      assignedToId: lekRep.id, contactName: 'Sam Wicklund', contactTitle: 'Facilities Manager',
+    },
+    {
+      tenantId: lek.id, type: 'CONSTRUCTION_PERMIT', priority: 'WARM',
+      title: 'Daphne Elementary School #4 — $18M New Build',
+      company: 'Baldwin County School System', location: 'Daphne, AL',
+      estimatedValue: 95000,
+      description: 'New elementary school approved under 2025 bond referendum. Permit filed May 7. Typical district security scope: cameras, access control, video intercom. Decision: facilities director.',
+      sourceName: 'Baldwin County Permits', sourceUrl: 'https://baldwincountyal.gov',
+      detectedAt: new Date('2026-05-07T14:00:00Z'), status: 'NEW', isRead: false,
+    },
+    {
+      tenantId: lek.id, type: 'CONSTRUCTION_PERMIT', priority: 'COLD',
+      title: 'Foley Outlet Center — Retail Expansion Wing',
+      company: 'Tanger Outlets Foley', location: 'Foley, AL',
+      estimatedValue: 45000,
+      description: 'Permit filed for 28,000 sq ft expansion. Retail security scope typically small — recommend monitoring closer to GC selection.',
+      sourceName: 'Baldwin County Permits',
+      detectedAt: new Date('2026-05-06T11:00:00Z'), status: 'DISMISSED', isRead: true,
+    },
+
+    // ── Government RFPs (4) ───────────────────────────────────────────────────
+    {
+      tenantId: lek.id, type: 'GOVERNMENT_RFP', priority: 'HOT',
+      title: 'Mobile County Sheriff — RFP: Jail & Courts Security Upgrade',
+      company: 'Mobile County Sheriff\'s Office', location: 'Mobile, AL',
+      estimatedValue: 420000,
+      description: 'RFP #MCSO-2026-014 posted May 9. Scope: access control, IP camera replacement, and intercom for the Mobile Metro Jail and 3 courthouse buildings. Pre-bid conference May 27. Closes June 20.',
+      sourceName: 'BidNet Alabama', sourceUrl: 'https://bidnetdirect.com/alabama',
+      detectedAt: new Date('2026-05-09T08:00:00Z'), status: 'NEW', isRead: false,
+      contactName: 'Capt. D. Simmons', contactTitle: 'Procurement Liaison',
+    },
+    {
+      tenantId: lek.id, type: 'GOVERNMENT_RFP', priority: 'HOT',
+      title: 'Pensacola Housing Authority — Security Overhaul (9 Properties)',
+      company: 'Pensacola Housing Authority', location: 'Pensacola, FL',
+      estimatedValue: 310000,
+      description: 'RFP #PHA-2026-22 issued May 6. Cameras and access control across 9 public housing complexes. HUD-funded, 12-month implementation window. Closes June 13.',
+      sourceName: 'Florida Vendor Bid System',
+      detectedAt: new Date('2026-05-08T07:30:00Z'), status: 'NEW', isRead: false,
+      assignedToId: lekRep.id, contactName: 'Maria Delgado', contactTitle: 'Director of Operations',
+    },
+    {
+      tenantId: lek.id, type: 'GOVERNMENT_RFP', priority: 'WARM',
+      title: 'Montgomery Public Transit — Bus Terminal & Depot Camera RFP',
+      company: 'Montgomery Area Transit System', location: 'Montgomery, AL',
+      estimatedValue: 85000,
+      description: 'RFP #MATS-2026-09 for IP camera installation at main terminal, 2 transit depots, and 8 bus stops. Federal transit funds. Pre-bid May 22, closes June 6.',
+      sourceName: 'SAM.gov',
+      detectedAt: new Date('2026-05-07T10:00:00Z'), status: 'SAVED', isRead: true,
+      assignedToId: lekAdmin.id,
+    },
+    {
+      tenantId: lek.id, type: 'GOVERNMENT_RFP', priority: 'COLD',
+      title: 'Tuscaloosa Parks & Rec — Trail Camera & Lighting RFP',
+      company: 'City of Tuscaloosa Parks & Recreation', location: 'Tuscaloosa, AL',
+      estimatedValue: 22000,
+      description: 'Small RFP for outdoor trail cameras and lighting at 4 city parks. Low value, competitive. Worth a quick quote if nothing bigger is pending.',
+      sourceName: 'City of Tuscaloosa Procurement',
+      detectedAt: new Date('2026-05-05T13:00:00Z'), status: 'NEW', isRead: false,
+    },
+
+    // ── Customer Signals (3) ──────────────────────────────────────────────────
+    {
+      tenantId: lek.id, type: 'CUSTOMER_SIGNAL', priority: 'HOT',
+      title: 'Autauga County BOE — Renewal at Risk: Budget Freeze Announced',
+      company: 'Autauga County Board of Education', location: 'Prattville, AL',
+      estimatedValue: 28500,
+      description: 'County commission announced a discretionary spending freeze effective June 1 through Q3. Existing customer renewal due August 1. Recommend proactive outreach to lock in renewal before freeze takes effect.',
+      sourceName: 'Prattville Progress (local news)',
+      detectedAt: new Date('2026-05-10T09:00:00Z'), status: 'NEW', isRead: false,
+      assignedToId: lekAdmin.id,
+    },
+    {
+      tenantId: lek.id, type: 'CUSTOMER_SIGNAL', priority: 'WARM',
+      title: 'Dothan City Schools — Hiring 2 New Facilities Managers',
+      company: 'Dothan City Schools', location: 'Dothan, AL',
+      estimatedValue: 35000,
+      description: 'Job postings indicate DCS is expanding facilities staff. New hires often revisit vendor relationships. Good time to connect and pitch camera expansion Phase 2 to new decision makers.',
+      sourceName: 'Indeed / LinkedIn',
+      detectedAt: new Date('2026-05-08T11:00:00Z'), status: 'NEW', isRead: false,
+      assignedToId: lekRep.id,
+    },
+    {
+      tenantId: lek.id, type: 'CUSTOMER_SIGNAL', priority: 'WARM',
+      title: 'Orange Beach Marina — 2026 Contract Up for Renewal (June 1)',
+      company: 'Orange Beach Marina', location: 'Orange Beach, AL',
+      estimatedValue: 12500,
+      description: 'Annual contract renewal due June 1. Owner Linda Pruitt mentioned interest in adding a second camera on the fuel dock during last service visit. Recommend renewal call + upsell conversation.',
+      sourceName: 'CRM contract tracker',
+      detectedAt: new Date('2026-05-06T08:00:00Z'), status: 'SAVED', isRead: true,
+      assignedToId: lekRep.id, contactName: 'Linda Pruitt', contactTitle: 'Owner',
+    },
+
+    // ── Personnel Changes (4) ─────────────────────────────────────────────────
+    {
+      tenantId: lek.id, type: 'PERSONNEL_CHANGE', priority: 'HOT',
+      title: 'New Security Director Hired — Huntsville Hospital System',
+      company: 'Huntsville Hospital System', location: 'Huntsville, AL',
+      description: 'LinkedIn: Marcus Webb announced as new VP of Security Services at Huntsville Hospital starting May 19. Previously led security modernization at Vanderbilt Medical. Known Verkada proponent. Strong warm intro opportunity.',
+      sourceName: 'LinkedIn',
+      detectedAt: new Date('2026-05-09T07:00:00Z'), status: 'NEW', isRead: false,
+      assignedToId: lekRep.id, contactName: 'Marcus Webb', contactTitle: 'VP of Security Services',
+    },
+    {
+      tenantId: lek.id, type: 'PERSONNEL_CHANGE', priority: 'HOT',
+      title: 'Jefferson County Schools — New CFO Approved Bond Spending',
+      company: 'Jefferson County Schools', location: 'Birmingham, AL',
+      description: 'New CFO Dr. Angela Ross confirmed bond-funded projects are unblocked for Q3 procurement. Jefferson County 12-campus safety initiative (active lead, $145K) can now move forward. Follow up with David Pugh immediately.',
+      sourceName: 'Birmingham Business Journal',
+      detectedAt: new Date('2026-05-08T10:30:00Z'), status: 'NEW', isRead: false,
+      assignedToId: lekRep.id,
+    },
+    {
+      tenantId: lek.id, type: 'PERSONNEL_CHANGE', priority: 'WARM',
+      title: 'City of Dothan — New IT Director Starts June 2',
+      company: 'City of Dothan', location: 'Dothan, AL',
+      description: 'City of Dothan hired Rob Henley as IT Director, starting June 2. Will oversee physical security tech. Good time to get a meeting on the books before his calendar fills up.',
+      sourceName: 'Dothan Eagle',
+      detectedAt: new Date('2026-05-07T12:00:00Z'), status: 'NEW', isRead: false,
+      contactName: 'Rob Henley', contactTitle: 'Incoming IT Director',
+    },
+    {
+      tenantId: lek.id, type: 'PERSONNEL_CHANGE', priority: 'COLD',
+      title: 'Auburn University — Facilities VP Retiring in August',
+      company: 'Auburn University', location: 'Auburn, AL',
+      description: 'Sam Wicklund announced retirement effective August 31. Successor not yet named. Existing proposal relationship — ensure deal is closed before transition or re-engage with new VP.',
+      sourceName: 'Auburn University press release',
+      detectedAt: new Date('2026-05-06T15:00:00Z'), status: 'SAVED', isRead: true,
+      assignedToId: lekRep.id, contactName: 'Sam Wicklund', contactTitle: 'VP Facilities (retiring)',
+    },
+
+    // ── News (4) ──────────────────────────────────────────────────────────────
+    {
+      tenantId: lek.id, type: 'NEWS', priority: 'HOT',
+      title: 'Alabama Legislature Passes $120M School Safety Bill',
+      company: null, location: 'Montgomery, AL (statewide)',
+      estimatedValue: null,
+      description: 'SB 312 signed into law May 8 — allocates $120M for K-12 school safety tech upgrades statewide, distributed via county boards. LEA grants open June 15. This directly funds camera + access control projects. Prioritize all education leads immediately.',
+      sourceName: 'AL.com / Alabama Legislature',
+      detectedAt: new Date('2026-05-08T16:00:00Z'), status: 'NEW', isRead: false,
+      assignedToId: lekAdmin.id,
+    },
+    {
+      tenantId: lek.id, type: 'NEWS', priority: 'WARM',
+      title: 'Verkada Named to Forbes Cloud 100 — Strong Sales Talking Point',
+      company: null, location: null,
+      description: 'Verkada recognized on Forbes Cloud 100 for 2026. Use in customer conversations as third-party validation. Particularly useful for healthcare and government verticals where brand trust matters.',
+      sourceName: 'Forbes',
+      detectedAt: new Date('2026-05-07T09:00:00Z'), status: 'NEW', isRead: false,
+    },
+    {
+      tenantId: lek.id, type: 'NEWS', priority: 'WARM',
+      title: 'Pensacola Ranked #3 Fastest-Growing Metro — Construction Boom',
+      company: null, location: 'Pensacola, FL',
+      description: 'Pensacola-Ferry Pass-Brent MSA ranked 3rd in the Southeast for construction permits issued YTD. Strong indicator of pipeline opportunity in Escambia and Santa Rosa counties over next 12–18 months.',
+      sourceName: 'CoStar / Pensacola News Journal',
+      detectedAt: new Date('2026-05-06T10:00:00Z'), status: 'SAVED', isRead: true,
+    },
+    {
+      tenantId: lek.id, type: 'NEWS', priority: 'COLD',
+      title: 'Competitor Alert: SecurePath Opens Birmingham Office',
+      company: 'SecurePath Technologies', location: 'Birmingham, AL',
+      description: 'SecurePath (Axis partner) announced a new Birmingham office targeting Alabama/FL Panhandle market. Expect increased competition on RFPs. Reinforce Verkada differentiation on active proposals.',
+      sourceName: 'Birmingham Business Journal',
+      detectedAt: new Date('2026-05-05T14:00:00Z'), status: 'NEW', isRead: false,
+      assignedToId: lekAdmin.id,
+    },
+  ]
+
+  await Promise.all(signals.map((data) => db.signal.create({ data })))
+  console.log(`  ✓ Signals created (${signals.length})`)
 
   console.log('\nSeed complete.')
   console.log('\nDev credentials (rotate before staging/prod):')

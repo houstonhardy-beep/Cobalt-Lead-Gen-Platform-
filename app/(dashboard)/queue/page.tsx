@@ -1,17 +1,63 @@
-export default function SignalQueuePage() {
-  return (
-    <div>
-      <h1 className="text-xl font-semibold mb-1" style={{ color: 'var(--text)' }}>Signal Queue</h1>
-      <p className="text-sm mb-6" style={{ color: 'var(--text2)' }}>
-        Intelligence signals and inbound prospects.
-      </p>
+import { requireAuth } from '@/lib/auth'
+import { getTenant } from '@/lib/tenant'
+import { db } from '@/lib/db'
+import { redirect } from 'next/navigation'
+import { SignalQueueClient } from './_components/SignalQueueClient'
 
-      <div
-        className="rounded-lg p-8 text-center"
-        style={{ background: 'var(--bg2)', border: '1px solid var(--bg4)' }}
-      >
-        <p style={{ color: 'var(--text3)' }}>Signal queue coming soon.</p>
-      </div>
-    </div>
+export const metadata = { title: 'Signal Queue' }
+
+export default async function SignalQueuePage() {
+  const session = await requireAuth()
+  const tenant  = await getTenant()
+  if (!tenant) redirect('/login')
+
+  const [signals, reps] = await Promise.all([
+    db.signal.findMany({
+      where: { tenantId: tenant.id },
+      orderBy: [
+        { status: 'asc' },
+        { priority: 'asc' },
+        { detectedAt: 'desc' },
+      ],
+      select: {
+        id:             true,
+        type:           true,
+        priority:       true,
+        title:          true,
+        company:        true,
+        location:       true,
+        estimatedValue: true,
+        description:    true,
+        sourceName:     true,
+        sourceUrl:      true,
+        detectedAt:     true,
+        status:         true,
+        assignedToId:   true,
+        isRead:         true,
+        contactName:    true,
+        contactTitle:   true,
+        convertedLeadId: true,
+        assignedTo: { select: { id: true, name: true } },
+      },
+    }),
+    db.user.findMany({
+      where: { tenantId: tenant.id, active: true },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
+  ])
+
+  const serialized = signals.map((s) => ({
+    ...s,
+    detectedAt: s.detectedAt.toISOString(),
+  }))
+
+  return (
+    <SignalQueueClient
+      signals={serialized}
+      reps={reps as { id: string; name: string | null }[]}
+      currentUserId={session.user.id}
+      currentUserRole={session.user.role}
+    />
   )
 }

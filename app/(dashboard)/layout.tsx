@@ -49,15 +49,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const tenantName = tenant?.name      ?? 'Cobalt'
 
   // Lightweight alert count for topbar bell badge (overdue follow-ups only)
-  const alertCount = tenant
-    ? await db.lead.count({
-        where: {
-          tenantId: tenant.id,
-          nextFollowUp: { lt: new Date() },
-          stage: { notIn: ['CLOSED_WON', 'CLOSED_LOST'] },
-        },
-      })
-    : 0
+  // Unread NEW signal count for sidebar badge
+  const [alertCount, signalCount] = await Promise.all([
+    tenant
+      ? db.lead.count({
+          where: {
+            tenantId: tenant.id,
+            nextFollowUp: { lt: new Date() },
+            stage: { notIn: ['CLOSED_WON', 'CLOSED_LOST'] },
+          },
+        })
+      : Promise.resolve(0),
+    tenant
+      ? db.signal.count({
+          where: { tenantId: tenant.id, status: 'NEW', isRead: false },
+        })
+      : Promise.resolve(0),
+  ])
 
   const accentColor = branding.tenantAccentColor ?? branding.accentColor ?? branding.primaryColor
 
@@ -70,7 +78,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           '--brand':  branding.primaryColor,
         } as React.CSSProperties}
       >
-        <Sidebar />
+        <Sidebar signalCount={signalCount} />
 
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <Topbar

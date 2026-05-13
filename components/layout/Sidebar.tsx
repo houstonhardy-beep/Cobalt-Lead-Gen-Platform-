@@ -3,29 +3,29 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const NAV = [
-  { href: '/',              label: 'Command Center', icon: IconRadar },
-  { href: '/pipeline',      label: 'Pipeline',       icon: IconPipeline },
-  { href: '/queue',         label: 'Signal Queue',   icon: IconSignal },
-  { href: '/opportunities', label: 'Opportunities',  icon: IconOpportunity },
-  { href: '/outreach',      label: 'Outreach',       icon: IconOutreach },
-  { href: '/research',      label: 'Research',       icon: IconResearch },
-  { href: '/customers',     label: 'Customers',      icon: IconCustomers },
-  { href: '/reports',       label: 'Reports',        icon: IconReports },
-  { href: '/territory-map', label: 'Territory Map',  icon: IconMap },
-]
-
 const BOTTOM_NAV = [
   { href: '/settings', label: 'Settings', icon: IconSettings },
 ]
 
-export function Sidebar() {
+export function Sidebar({ signalCount = 0 }: { signalCount?: number }) {
   const pathname = usePathname()
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/'
     return pathname.startsWith(href)
   }
+
+  const NAV = [
+    { href: '/',              label: 'Command Center', icon: IconRadar,       badge: 0 },
+    { href: '/pipeline',      label: 'Pipeline',       icon: IconPipeline,    badge: 0 },
+    { href: '/queue',         label: 'Signal Queue',   icon: IconSignal,      badge: signalCount },
+    { href: '/opportunities', label: 'Opportunities',  icon: IconOpportunity, badge: 0 },
+    { href: '/outreach',      label: 'Outreach',       icon: IconOutreach,    badge: 0 },
+    { href: '/research',      label: 'Research',       icon: IconResearch,    badge: 0 },
+    { href: '/customers',     label: 'Customers',      icon: IconCustomers,   badge: 0 },
+    { href: '/reports',       label: 'Reports',        icon: IconReports,     badge: 0 },
+    { href: '/territory-map', label: 'Territory Map',  icon: IconMap,         badge: 0 },
+  ]
 
   return (
     <aside
@@ -43,8 +43,8 @@ export function Sidebar() {
 
       {/* Primary nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        {NAV.map(({ href, label, icon: Icon }) => (
-          <NavItem key={href} href={href} label={label} active={isActive(href)}>
+        {NAV.map(({ href, label, icon: Icon, badge }) => (
+          <NavItem key={href} href={href} label={label} active={isActive(href)} badge={badge}>
             <Icon />
           </NavItem>
         ))}
@@ -53,7 +53,7 @@ export function Sidebar() {
       {/* Bottom nav */}
       <div className="py-3 px-2 space-y-0.5" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
         {BOTTOM_NAV.map(({ href, label, icon: Icon }) => (
-          <NavItem key={href} href={href} label={label} active={isActive(href)}>
+          <NavItem key={href} href={href} label={label} active={isActive(href)} badge={0}>
             <Icon />
           </NavItem>
         ))}
@@ -66,11 +66,13 @@ function NavItem({
   href,
   label,
   active,
+  badge = 0,
   children,
 }: {
   href: string
   label: string
   active: boolean
+  badge?: number
   children: React.ReactNode
 }) {
   return (
@@ -106,7 +108,15 @@ function NavItem({
       }}
     >
       <span className="w-4 h-4 shrink-0 opacity-75">{children}</span>
-      {label}
+      <span className="flex-1">{label}</span>
+      {badge > 0 && (
+        <span
+          className="flex items-center justify-center font-bold rounded-full text-white"
+          style={{ minWidth: 18, height: 18, fontSize: 10, paddingInline: 4, background: '#dc2626', lineHeight: 1 }}
+        >
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </Link>
   )
 }
