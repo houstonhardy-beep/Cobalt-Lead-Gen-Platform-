@@ -192,6 +192,15 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function fmtUSD(s: string): string {
+  const n = parseFloat(s.replace(/[^0-9.]/g, ''))
+  return s && !isNaN(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }) : ''
+}
+
+function stripFmt(s: string): string {
+  return s.replace(/[^0-9.]/g, '')
+}
+
 function todayIso(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -208,7 +217,7 @@ function detailToEditFields(d: OppDetail): EditFields {
     jobType:           d.jobType           ?? '',
     productCategory:   d.productCategory   ?? '',
     leadSource:        d.leadSource        ?? '',
-    estimatedRevenue:  d.estimatedRevenue  !== null ? String(d.estimatedRevenue) : '',
+    estimatedRevenue:  d.estimatedRevenue  !== null ? fmtUSD(String(d.estimatedRevenue)) : '',
     expectedCloseDate: d.expectedCloseDate ?? '',
     notes:             d.notes             ?? '',
   }
@@ -479,7 +488,7 @@ function DrawerBody({
         jobType:           editFields.jobType           || null,
         productCategory:   editFields.productCategory   || null,
         leadSource:        editFields.leadSource        || null,
-        estimatedRevenue:  editFields.estimatedRevenue  ? parseFloat(editFields.estimatedRevenue) : null,
+        estimatedRevenue:  editFields.estimatedRevenue  ? parseFloat(stripFmt(editFields.estimatedRevenue)) : null,
         expectedCloseDate: editFields.expectedCloseDate || null,
         notes:             editFields.notes             || null,
       }
@@ -672,12 +681,15 @@ function DrawerBody({
                     {LEAD_SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </EditField>
-                <EditField label="Est. Value ($)">
+                <EditField label="Est. Value">
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     value={editFields.estimatedRevenue}
                     onChange={(e) => setField('estimatedRevenue', e.target.value)}
-                    placeholder="0"
+                    onFocus={() => setField('estimatedRevenue', stripFmt(editFields.estimatedRevenue))}
+                    onBlur={() => setField('estimatedRevenue', fmtUSD(editFields.estimatedRevenue))}
+                    placeholder="$0"
                     style={inputStyle}
                   />
                 </EditField>

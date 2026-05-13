@@ -120,6 +120,15 @@ function relDays(ms: number): string {
   return `${Math.floor(d / 365)}y ago`
 }
 
+function fmtUSD(s: string): string {
+  const n = parseFloat(s.replace(/[^0-9.]/g, ''))
+  return s && !isNaN(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }) : ''
+}
+
+function stripFmt(s: string): string {
+  return s.replace(/[^0-9.]/g, '')
+}
+
 function todayIso(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -818,7 +827,7 @@ function ConvertModal({ lead, onClose, onConvert }: {
     try {
       await onConvert({
         stage,
-        estimatedRevenue:  estimatedRevenue  ? parseFloat(estimatedRevenue) : undefined,
+        estimatedRevenue:  estimatedRevenue  ? parseFloat(stripFmt(estimatedRevenue)) : undefined,
         jobType:           jobType           || undefined,
         productCategory:   productCategory   || undefined,
         expectedCloseDate: expectedCloseDate || undefined,
@@ -854,11 +863,13 @@ function ConvertModal({ lead, onClose, onConvert }: {
             </select>
           </FormField>
 
-          <FormField label="Estimated Value ($)">
+          <FormField label="Estimated Value">
             <input
-              type="number" value={estimatedRevenue}
+              type="text" inputMode="numeric" value={estimatedRevenue}
               onChange={(e) => setEstimatedRevenue(e.target.value)}
-              placeholder="0" style={inputStyle}
+              onFocus={() => setEstimatedRevenue((v) => stripFmt(v))}
+              onBlur={() => setEstimatedRevenue((v) => fmtUSD(v))}
+              placeholder="$0" style={inputStyle}
             />
           </FormField>
 
@@ -929,15 +940,16 @@ function NewLeadDrawer({ open, reps, currentUserId, onClose, onSubmit }: {
   const [heat,         setHeat]         = useState('WARM')
   const [assignedToId, setAssignedToId] = useState(currentUserId)
   const [city,         setCity]         = useState('')
-  const [stateVal,     setStateVal]     = useState('')
-  const [notes,        setNotes]        = useState('')
+  const [stateVal,          setStateVal]          = useState('')
+  const [estimatedRevenue,  setEstimatedRevenue]  = useState('')
+  const [notes,             setNotes]             = useState('')
   const [submitting,   setSubmitting]   = useState(false)
   const [error,        setError]        = useState('')
 
   function reset() {
     setCompany(''); setContact(''); setContactTitle(''); setPhone(''); setEmail('')
     setLeadSource(''); setHeat('WARM'); setAssignedToId(currentUserId)
-    setCity(''); setStateVal(''); setNotes(''); setError('')
+    setCity(''); setStateVal(''); setEstimatedRevenue(''); setNotes(''); setError('')
   }
 
   function handleClose() { reset(); onClose() }
@@ -957,9 +969,10 @@ function NewLeadDrawer({ open, reps, currentUserId, onClose, onSubmit }: {
         leadSource:   leadSource   || undefined,
         heat,
         assignedToId: assignedToId || undefined,
-        city:         city         || undefined,
-        state:        stateVal     || undefined,
-        notes:        notes        || undefined,
+        city:             city             || undefined,
+        state:            stateVal         || undefined,
+        value:            estimatedRevenue ? parseFloat(stripFmt(estimatedRevenue)) : undefined,
+        notes:            notes            || undefined,
       })
       if (err) setError(err)
     } finally {
@@ -1030,6 +1043,16 @@ function NewLeadDrawer({ open, reps, currentUserId, onClose, onSubmit }: {
           </FormField>
         </div>
 
+        <FormField label="Estimated Value">
+          <input
+            type="text" inputMode="numeric" value={estimatedRevenue}
+            onChange={(e) => setEstimatedRevenue(e.target.value)}
+            onFocus={() => setEstimatedRevenue((v) => stripFmt(v))}
+            onBlur={() => setEstimatedRevenue((v) => fmtUSD(v))}
+            placeholder="$0" style={inputStyle}
+          />
+        </FormField>
+
         <FormField label="Notes">
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
             placeholder="Any notes about this lead…" rows={3}
@@ -1085,7 +1108,7 @@ function NewOppDrawer({ open, reps, currentUserId, onClose, onSubmit }: {
         title:            title.trim(),
         company:          company.trim(),
         stage,
-        estimatedRevenue: estimatedRevenue ? parseFloat(estimatedRevenue) : undefined,
+        estimatedRevenue: estimatedRevenue ? parseFloat(stripFmt(estimatedRevenue)) : undefined,
         jobType:          jobType           || undefined,
         productCategory:  productCategory  || undefined,
         leadSource:       leadSource        || undefined,
@@ -1120,10 +1143,13 @@ function NewOppDrawer({ open, reps, currentUserId, onClose, onSubmit }: {
               ))}
             </select>
           </FormField>
-          <FormField label="Estimated Value ($)">
-            <input type="number" value={estimatedRevenue}
+          <FormField label="Estimated Value">
+            <input
+              type="text" inputMode="numeric" value={estimatedRevenue}
               onChange={(e) => setEstimatedRevenue(e.target.value)}
-              placeholder="0" style={inputStyle} />
+              onFocus={() => setEstimatedRevenue((v) => stripFmt(v))}
+              onBlur={() => setEstimatedRevenue((v) => fmtUSD(v))}
+              placeholder="$0" style={inputStyle} />
           </FormField>
         </div>
 

@@ -18,17 +18,18 @@ export async function POST(request: NextRequest) {
   if (!tenantId) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
   const body = await request.json() as {
-    company:      string
-    contact?:     string
+    company:       string
+    contact?:      string
     contactTitle?: string
-    phone?:       string
-    email?:       string
-    leadSource?:  string
-    heat?:        string
+    phone?:        string
+    email?:        string
+    leadSource?:   string
+    heat?:         string
     assignedToId?: string
-    notes?:       string
-    city?:        string
-    state?:       string
+    value?:        number
+    notes?:        string
+    city?:         string
+    state?:        string
   }
 
   if (!body.company?.trim()) {
@@ -47,6 +48,7 @@ export async function POST(request: NextRequest) {
       heat:         body.heat as never || 'COLD',
       stage:        'PROSPECT',
       assignedToId: body.assignedToId || auth.session.user.id,
+      value:        body.value        ?? undefined,
       notes:        body.notes        || undefined,
       city:         body.city         || undefined,
       state:        body.state        || undefined,
