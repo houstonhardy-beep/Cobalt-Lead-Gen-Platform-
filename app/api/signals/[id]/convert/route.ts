@@ -18,6 +18,22 @@ const SIGNAL_TYPE_TO_LEAD_SOURCE: Record<string, string> = {
   PERSONNEL_CHANGE:    'COLD_OUTREACH',
 }
 
+const SIGNAL_TYPE_TO_OPP_TYPE: Record<string, string> = {
+  CONSTRUCTION_PERMIT: 'PERMIT',
+  GOVERNMENT_RFP:      'RFP',
+  CUSTOMER_SIGNAL:     'BID',
+  NEWS:                'BID',
+  PERSONNEL_CHANGE:    'BID',
+}
+
+const SIGNAL_TYPE_TO_OPP_SOURCE: Record<string, string> = {
+  CONSTRUCTION_PERMIT: 'DODGE',
+  GOVERNMENT_RFP:      'SAM_GOV',
+  CUSTOMER_SIGNAL:     'MANUAL',
+  NEWS:                'MANUAL',
+  PERSONNEL_CHANGE:    'MANUAL',
+}
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
@@ -62,6 +78,25 @@ export async function POST(
       leadSource:   SIGNAL_TYPE_TO_LEAD_SOURCE[signal.type] as never ?? 'COLD_OUTREACH',
       assignedToId: signal.assignedToId ?? auth.session.user.id,
     },
+    select: { id: true, company: true },
+  })
+
+  const weightedValue = signal.estimatedValue ? signal.estimatedValue * 0.1 : undefined
+
+  const opportunity = await db.opportunity.create({
+    data: {
+      tenantId,
+      leadId:            lead.id,
+      title:             signal.title,
+      type:              SIGNAL_TYPE_TO_OPP_TYPE[signal.type] as never ?? 'BID',
+      source:            SIGNAL_TYPE_TO_OPP_SOURCE[signal.type] as never ?? 'MANUAL',
+      status:            'OPEN',
+      stage:             'SIGNAL',
+      stageChangedAt:    new Date(),
+      estimatedRevenue:  signal.estimatedValue ?? undefined,
+      probabilityPercent: 10,
+      weightedValue:     weightedValue,
+    },
     select: { id: true },
   })
 
@@ -70,5 +105,5 @@ export async function POST(
     data: { status: 'CONVERTED', convertedLeadId: lead.id, isRead: true },
   })
 
-  return NextResponse.json({ leadId: lead.id })
+  return NextResponse.json({ leadId: lead.id, opportunityId: opportunity.id, company: lead.company })
 }

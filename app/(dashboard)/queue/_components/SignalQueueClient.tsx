@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useMemo } from 'react'
+import Link from 'next/link'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type SignalType     = 'CONSTRUCTION_PERMIT' | 'GOVERNMENT_RFP' | 'CUSTOMER_SIGNAL' | 'NEWS' | 'PERSONNEL_CHANGE'
 type SignalPriority = 'HOT' | 'WARM' | 'COLD'
 type SignalStatus   = 'NEW' | 'SAVED' | 'CONVERTED' | 'DISMISSED'
+type StatusFilter   = 'ACTIVE' | SignalStatus | 'ALL'
 
 interface Signal {
   id:              string
@@ -28,6 +29,11 @@ interface Signal {
   contactTitle:    string | null
   convertedLeadId: string | null
   assignedTo:      { id: string; name: string | null } | null
+}
+
+interface ConvertedMeta {
+  company: string
+  opportunityId: string
 }
 
 interface Props {
@@ -61,12 +67,8 @@ const PRIORITY_COLOR: Record<SignalPriority, string> = {
   COLD: '#6b7280',
 }
 
-const STATUS_LABEL: Record<SignalStatus, string> = {
-  NEW:       'New',
-  SAVED:     'Saved',
-  CONVERTED: 'Converted',
-  DISMISSED: 'Dismissed',
-}
+const PRIORITY_ORDER: Record<SignalPriority, number> = { HOT: 0, WARM: 1, COLD: 2 }
+const STATUS_ORDER:   Record<SignalStatus, number>   = { NEW: 0, SAVED: 1, CONVERTED: 2, DISMISSED: 3 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -88,38 +90,47 @@ function relativeDate(iso: string) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SignalQueueClient({ signals: initialSignals, reps, currentUserId, currentUserRole }: Props) {
-  const router = useRouter()
-  const [, startTransition] = useTransition()
+  const [signals, setSignals] = useState<Signal[]>(initialSignals)
+  // convertedMeta stores company + opportunityId for newly-converted signals this session
+  const [convertedMeta, setConvertedMeta] = useState<Record<string, ConvertedMeta>>({})
 
-  const [signals, setSignals]       = useState<Signal[]>(initialSignals)
-  const [search,  setSearch]        = useState('')
+  const [search,         setSearch]         = useState('')
   const [typeFilter,     setTypeFilter]     = useState<SignalType | 'ALL'>('ALL')
   const [priorityFilter, setPriorityFilter] = useState<SignalPriority | 'ALL'>('ALL')
-  const [statusFilter,   setStatusFilter]   = useState<SignalStatus | 'ALL'>('NEW')
+  const [statusFilter,   setStatusFilter]   = useState<StatusFilter>('ACTIVE')
   const [expandedId,     setExpandedId]     = useState<string | null>(null)
   const [converting,     setConverting]     = useState<string | null>(null)
 
   // ── Stats ─────────────────────────────────────────────────────────────────
 
   const stats = useMemo(() => {
-    const all  = signals.filter((s) => s.status !== 'DISMISSED')
-    const newS = signals.filter((s) => s.status === 'NEW')
-    const hot  = newS.filter((s) => s.priority === 'HOT')
+    const active = signals.filter((s) => s.status === 'NEW' || s.status === 'SAVED')
+    const newS   = signals.filter((s) => s.status === 'NEW')
+    const hot    = newS.filter((s) => s.priority === 'HOT')
     const totalValue = newS.reduce((acc, s) => acc + (s.estimatedValue ?? 0), 0)
-    return { total: all.length, newCount: newS.length, hotCount: hot.length, totalValue }
+    return { total: active.length, newCount: newS.length, hotCount: hot.length, totalValue }
   }, [signals])
 
-  // ── Filtered list ─────────────────────────────────────────────────────────
+  // ── Filtered + sorted list ────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return signals.filter((s) => {
-      if (typeFilter     !== 'ALL' && s.type     !== typeFilter)     return false
-      if (priorityFilter !== 'ALL' && s.priority !== priorityFilter) return false
-      if (statusFilter   !== 'ALL' && s.status   !== statusFilter)   return false
-      if (q && ![s.title, s.company, s.location, s.description].some((v) => v?.toLowerCase().includes(q))) return false
-      return true
-    })
+    return signals
+      .filter((s) => {
+        if (statusFilter === 'ACTIVE' && s.status !== 'NEW' && s.status !== 'SAVED') return false
+        if (statusFilter !== 'ACTIVE' && statusFilter !== 'ALL' && s.status !== statusFilter) return false
+        if (typeFilter     !== 'ALL' && s.type     !== typeFilter)     return false
+        if (priorityFilter !== 'ALL' && s.priority !== priorityFilter) return false
+        if (q && ![s.title, s.company, s.location, s.description].some((v) => v?.toLowerCase().includes(q))) return false
+        return true
+      })
+      .sort((a, b) => {
+        const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+        if (statusDiff !== 0) return statusDiff
+        const priDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
+        if (priDiff !== 0) return priDiff
+        return new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime()
+      })
   }, [signals, search, typeFilter, priorityFilter, statusFilter])
 
   // ── Mutations ─────────────────────────────────────────────────────────────
@@ -158,11 +169,14 @@ export function SignalQueueClient({ signals: initialSignals, reps, currentUserId
     try {
       const res = await fetch(`/api/signals/${id}/convert`, { method: 'POST' })
       if (!res.ok) { setConverting(null); return }
-      const { leadId } = await res.json() as { leadId: string }
+      const data = await res.json() as { leadId: string; opportunityId: string; company: string }
       setSignals((prev) =>
-        prev.map((s) => s.id === id ? { ...s, status: 'CONVERTED', convertedLeadId: leadId, isRead: true } : s)
+        prev.map((s) => s.id === id ? { ...s, status: 'CONVERTED', convertedLeadId: data.leadId, isRead: true } : s)
       )
-      startTransition(() => router.push(`/pipeline`))
+      setConvertedMeta((prev) => ({
+        ...prev,
+        [id]: { company: data.company, opportunityId: data.opportunityId },
+      }))
     } finally {
       setConverting(null)
     }
@@ -190,10 +204,10 @@ export function SignalQueueClient({ signals: initialSignals, reps, currentUserId
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Active',   value: stats.total,                      color: 'var(--text)'    },
-          { label: 'New',            value: stats.newCount,                   color: 'var(--accent)'  },
-          { label: 'Hot Signals',    value: stats.hotCount,                   color: '#dc2626'        },
-          { label: 'Est. Pipeline',  value: fmt$(stats.totalValue) ?? '—',    color: 'var(--success)' },
+          { label: 'Active Signals', value: stats.total,             color: 'var(--text)'    },
+          { label: 'New',            value: stats.newCount,          color: 'var(--accent)'  },
+          { label: 'Hot',            value: stats.hotCount,          color: '#dc2626'        },
+          { label: 'Est. Pipeline',  value: fmt$(stats.totalValue) ?? '—', color: 'var(--success)' },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-lg p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bg4)' }}>
             <p className="text-xs mb-1" style={{ color: 'var(--text3)' }}>{label}</p>
@@ -215,10 +229,17 @@ export function SignalQueueClient({ signals: initialSignals, reps, currentUserId
 
         <FilterChips
           label="Status"
-          options={['ALL', 'NEW', 'SAVED', 'CONVERTED', 'DISMISSED']}
+          options={['ACTIVE', 'NEW', 'SAVED', 'CONVERTED', 'DISMISSED', 'ALL']}
           value={statusFilter}
-          onChange={(v) => setStatusFilter(v as SignalStatus | 'ALL')}
-          labelMap={{ ALL: 'All Status', NEW: 'New', SAVED: 'Saved', CONVERTED: 'Converted', DISMISSED: 'Dismissed' }}
+          onChange={(v) => setStatusFilter(v as StatusFilter)}
+          labelMap={{
+            ACTIVE:    'New + Saved',
+            NEW:       'New',
+            SAVED:     'Saved',
+            CONVERTED: 'Converted',
+            DISMISSED: 'Dismissed',
+            ALL:       'All',
+          }}
         />
 
         <FilterChips
@@ -235,12 +256,12 @@ export function SignalQueueClient({ signals: initialSignals, reps, currentUserId
           value={typeFilter}
           onChange={(v) => setTypeFilter(v as SignalType | 'ALL')}
           labelMap={{
-            ALL:                'All Types',
-            CONSTRUCTION_PERMIT:'Permits',
-            GOVERNMENT_RFP:     'RFPs',
-            CUSTOMER_SIGNAL:    'Customers',
-            NEWS:               'News',
-            PERSONNEL_CHANGE:   'Personnel',
+            ALL:                 'All Types',
+            CONSTRUCTION_PERMIT: 'Permits',
+            GOVERNMENT_RFP:      'RFPs',
+            CUSTOMER_SIGNAL:     'Customers',
+            NEWS:                'News',
+            PERSONNEL_CHANGE:    'Personnel',
           }}
         />
 
@@ -263,6 +284,7 @@ export function SignalQueueClient({ signals: initialSignals, reps, currentUserId
               reps={reps}
               expanded={expandedId === signal.id}
               converting={converting === signal.id}
+              convertedMeta={convertedMeta[signal.id] ?? null}
               currentUserId={currentUserId}
               currentUserRole={currentUserRole}
               onToggle={() => toggleExpand(signal.id)}
@@ -294,7 +316,7 @@ function FilterChips({
   labelMap: Record<string, string>
 }) {
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 flex-wrap">
       {options.map((opt) => (
         <button
           key={opt}
@@ -320,6 +342,7 @@ function SignalCard({
   reps,
   expanded,
   converting,
+  convertedMeta,
   currentUserId,
   currentUserRole,
   onToggle,
@@ -333,6 +356,7 @@ function SignalCard({
   reps:            { id: string; name: string | null }[]
   expanded:        boolean
   converting:      boolean
+  convertedMeta:   ConvertedMeta | null
   currentUserId:   string
   currentUserRole: string
   onToggle:        () => void
@@ -347,13 +371,15 @@ function SignalCard({
   const isActionable = signal.status === 'NEW' || signal.status === 'SAVED'
   const isAdmin      = currentUserRole === 'TENANT_ADMIN' || currentUserRole === 'COBALT_SUPER_ADMIN'
 
+  const cardOpacity = isConverted ? 0.75 : isDismissed ? 0.55 : 1
+
   return (
     <div
       className="rounded-lg transition-all"
       style={{
-        background:  'var(--bg2)',
-        border:      `1px solid ${expanded ? 'var(--accent)' : 'var(--bg4)'}`,
-        opacity:     isDismissed ? 0.55 : 1,
+        background: 'var(--bg2)',
+        border:     `1px solid ${expanded ? 'var(--accent)' : 'var(--bg4)'}`,
+        opacity:    cardOpacity,
       }}
     >
       {/* Card header — always visible */}
@@ -371,7 +397,12 @@ function SignalCard({
         {/* Priority indicator */}
         <div
           className="flex-none rounded text-xs font-bold px-1.5 py-0.5 mt-0.5"
-          style={{ background: PRIORITY_COLOR[signal.priority] + '20', color: PRIORITY_COLOR[signal.priority], minWidth: 36, textAlign: 'center' }}
+          style={{
+            background: PRIORITY_COLOR[signal.priority] + '20',
+            color:      PRIORITY_COLOR[signal.priority],
+            minWidth: 36,
+            textAlign: 'center',
+          }}
         >
           {signal.priority}
         </div>
@@ -379,17 +410,62 @@ function SignalCard({
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ background: TYPE_COLOR[signal.type] + '18', color: TYPE_COLOR[signal.type] }}>
+            <span
+              className="text-xs font-medium px-1.5 py-0.5 rounded"
+              style={{ background: TYPE_COLOR[signal.type] + '18', color: TYPE_COLOR[signal.type] }}
+            >
               {TYPE_LABEL[signal.type]}
             </span>
-            {signal.status !== 'NEW' && (
-              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg3)', color: 'var(--text3)' }}>
-                {STATUS_LABEL[signal.status]}
+
+            {/* Converted badge */}
+            {isConverted && (
+              <span
+                className="text-xs font-medium px-1.5 py-0.5 rounded"
+                style={{ background: '#dcfce7', color: '#16a34a' }}
+              >
+                ✓ Converted
               </span>
             )}
+
+            {/* Dismissed badge */}
+            {isDismissed && (
+              <span
+                className="text-xs px-1.5 py-0.5 rounded"
+                style={{ background: 'var(--bg3)', color: 'var(--text3)' }}
+              >
+                Dismissed
+              </span>
+            )}
+
+            {/* Saved badge */}
+            {signal.status === 'SAVED' && (
+              <span
+                className="text-xs px-1.5 py-0.5 rounded"
+                style={{ background: 'var(--bg3)', color: 'var(--text2)' }}
+              >
+                Saved
+              </span>
+            )}
+
             <span className="text-xs" style={{ color: 'var(--text3)' }}>{relativeDate(signal.detectedAt)}</span>
+
+            {/* View Lead inline link (header) */}
+            {isConverted && signal.convertedLeadId && (
+              <Link
+                href="/pipeline"
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs"
+                style={{ color: 'var(--accent)' }}
+              >
+                View Lead →
+              </Link>
+            )}
           </div>
-          <p className="text-sm font-medium mt-1 leading-snug" style={{ color: 'var(--text)' }}>{signal.title}</p>
+
+          <p className="text-sm font-medium mt-1 leading-snug" style={{ color: 'var(--text)' }}>
+            {signal.title}
+          </p>
+
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
             {signal.company && (
               <span className="text-xs" style={{ color: 'var(--text3)' }}>{signal.company}</span>
@@ -439,13 +515,14 @@ function SignalCard({
                 </span>
               )}
               {signal.contactName && (
-                <span>Contact: <strong style={{ color: 'var(--text2)' }}>{signal.contactName}</strong>{signal.contactTitle ? `, ${signal.contactTitle}` : ''}</span>
+                <span>
+                  Contact:{' '}
+                  <strong style={{ color: 'var(--text2)' }}>{signal.contactName}</strong>
+                  {signal.contactTitle ? `, ${signal.contactTitle}` : ''}
+                </span>
               )}
               {signal.estimatedValue && (
                 <span>Est. value: <strong style={{ color: 'var(--success)' }}>{fmt$(signal.estimatedValue)}</strong></span>
-              )}
-              {isConverted && signal.convertedLeadId && (
-                <span style={{ color: 'var(--success)' }}>Converted to Lead</span>
               )}
             </div>
 
@@ -468,14 +545,10 @@ function SignalCard({
             )}
 
             {/* Action buttons */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {isActionable && (
                 <>
-                  <ActionButton
-                    primary
-                    onClick={onConvert}
-                    disabled={converting}
-                  >
+                  <ActionButton primary onClick={onConvert} disabled={converting}>
                     {converting ? 'Converting…' : 'Convert to Lead'}
                   </ActionButton>
 
@@ -492,9 +565,21 @@ function SignalCard({
               )}
 
               {isConverted && (
-                <span className="text-xs px-3 py-1.5 rounded" style={{ background: 'var(--bg3)', color: 'var(--success)' }}>
-                  ✓ Converted to Lead
-                </span>
+                <div className="flex items-center gap-3">
+                  <span
+                    className="text-xs px-3 py-1.5 rounded-md font-medium"
+                    style={{ background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0' }}
+                  >
+                    ✓ Converted to Lead
+                  </span>
+                  <Link
+                    href="/pipeline"
+                    className="text-xs"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    View in Pipeline →
+                  </Link>
+                </div>
               )}
             </div>
           </div>
