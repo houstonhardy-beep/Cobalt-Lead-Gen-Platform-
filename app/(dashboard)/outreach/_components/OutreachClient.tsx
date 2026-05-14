@@ -14,10 +14,13 @@ export interface HistoryRow {
   createdAtMs:      number
 }
 
-interface Props {
-  initialHistory:  HistoryRow[]
-  initialCompany:  string
-  initialResearch: string
+export interface OutreachClientProps {
+  initialHistory:      HistoryRow[]
+  initialCompany:      string
+  initialResearch:     string
+  initialContactName:  string
+  initialContactTitle: string
+  initialContactEmail: string
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -32,7 +35,7 @@ const TONES = [
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function OutreachClient({ initialHistory, initialCompany, initialResearch }: Props) {
+export function OutreachClient({ initialHistory, initialCompany, initialResearch, initialContactName, initialContactTitle, initialContactEmail }: OutreachClientProps) {
   const [history, setHistory] = useState<HistoryRow[]>(initialHistory)
 
   return (
@@ -45,6 +48,9 @@ export function OutreachClient({ initialHistory, initialCompany, initialResearch
       <GeneratorSection
         initialCompany={initialCompany}
         initialResearch={initialResearch}
+        initialContactName={initialContactName}
+        initialContactTitle={initialContactTitle}
+        initialContactEmail={initialContactEmail}
         onGenerated={(row) => setHistory((prev) => [row, ...prev])}
         onFeedback={(id, feedback) =>
           setHistory((prev) => prev.map((r) => r.id === id ? { ...r, feedback } : r))
@@ -61,18 +67,27 @@ export function OutreachClient({ initialHistory, initialCompany, initialResearch
 function GeneratorSection({
   initialCompany,
   initialResearch,
+  initialContactName,
+  initialContactTitle,
+  initialContactEmail,
   onGenerated,
   onFeedback,
 }: {
-  initialCompany:  string
-  initialResearch: string
-  onGenerated:     (row: HistoryRow) => void
-  onFeedback:      (id: string, feedback: string) => void
+  initialCompany:      string
+  initialResearch:     string
+  initialContactName:  string
+  initialContactTitle: string
+  initialContactEmail: string
+  onGenerated:         (row: HistoryRow) => void
+  onFeedback:          (id: string, feedback: string) => void
 }) {
   const [company, setCompany]   = useState(initialCompany)
   const [channel, setChannel]   = useState<'EMAIL' | 'CALL_SCRIPT'>('EMAIL')
   const [tone, setTone]         = useState<string>('Professional')
   const [researchContext, setResearchContext] = useState<Record<string, unknown> | null>(null)
+  const [contactName,  setContactName]  = useState(initialContactName)
+  const [contactTitle, setContactTitle] = useState(initialContactTitle)
+  const [contactEmail, setContactEmail] = useState(initialContactEmail)
 
   const [generating, setGenerating]       = useState(false)
   const [generatedContent, setGenContent] = useState<string | null>(null)
@@ -113,6 +128,9 @@ function GeneratorSection({
           channel,
           tone,
           researchContext: researchContext ?? undefined,
+          contactName:     contactName.trim()  || undefined,
+          contactTitle:    contactTitle.trim()  || undefined,
+          contactEmail:    contactEmail.trim()  || undefined,
         }),
       })
       if (!genRes.ok) {
@@ -222,6 +240,52 @@ function GeneratorSection({
                 Research loaded
               </span>
             )}
+          </div>
+        </div>
+
+        {/* Contact */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide block mb-1.5" style={{ color: 'var(--text3)' }}>Contact Name</label>
+            <input
+              type="text"
+              placeholder="Jane Smith"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              style={{
+                width: '100%', padding: '8px 12px', borderRadius: 6,
+                border: '1px solid var(--bg4)', background: 'var(--bg2)',
+                color: 'var(--text)', fontSize: 14, outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide block mb-1.5" style={{ color: 'var(--text3)' }}>Contact Title</label>
+            <input
+              type="text"
+              placeholder="VP Operations"
+              value={contactTitle}
+              onChange={(e) => setContactTitle(e.target.value)}
+              style={{
+                width: '100%', padding: '8px 12px', borderRadius: 6,
+                border: '1px solid var(--bg4)', background: 'var(--bg2)',
+                color: 'var(--text)', fontSize: 14, outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide block mb-1.5" style={{ color: 'var(--text3)' }}>Contact Email</label>
+            <input
+              type="email"
+              placeholder="jane@company.com"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              style={{
+                width: '100%', padding: '8px 12px', borderRadius: 6,
+                border: '1px solid var(--bg4)', background: 'var(--bg2)',
+                color: 'var(--text)', fontSize: 14, outline: 'none', boxSizing: 'border-box',
+              }}
+            />
           </div>
         </div>
 

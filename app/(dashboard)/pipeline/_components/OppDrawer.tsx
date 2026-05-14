@@ -1,9 +1,18 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import type { PipelineRow } from './PipelineClient'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Contact {
+  id:    string
+  name:  string
+  title: string | null
+  phone: string | null
+  email: string | null
+}
 
 interface StageHistoryEntry {
   id: string
@@ -223,14 +232,182 @@ function detailToEditFields(d: OppDetail): EditFields {
   }
 }
 
+// ─── Contacts Section ─────────────────────────────────────────────────────────
+
+function OppContactsSection({
+  opportunityId, contacts, setContacts,
+}: {
+  opportunityId: string
+  contacts:    Contact[]
+  setContacts: React.Dispatch<React.SetStateAction<Contact[]>>
+}) {
+  const [showAdd,    setShowAdd]    = useState(false)
+  const [editingId,  setEditingId]  = useState<string | null>(null)
+  const [confirmDel, setConfirmDel] = useState<string | null>(null)
+  const [fname,      setFname]      = useState('')
+  const [ftitle,     setFtitle]     = useState('')
+  const [fphone,     setFphone]     = useState('')
+  const [femail,     setFemail]     = useState('')
+  const [fsaving,    setFsaving]    = useState(false)
+
+  function resetForm() { setFname(''); setFtitle(''); setFphone(''); setFemail('') }
+
+  function beginAdd() { setEditingId(null); resetForm(); setShowAdd(true) }
+
+  function beginEdit(c: Contact) {
+    setShowAdd(false)
+    setFname(c.name); setFtitle(c.title ?? ''); setFphone(c.phone ?? ''); setFemail(c.email ?? '')
+    setEditingId(c.id)
+  }
+
+  function cancelForm() { setShowAdd(false); setEditingId(null); resetForm() }
+
+  async function handleAdd() {
+    if (!fname.trim() || fsaving) return
+    setFsaving(true)
+    try {
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunityId, name: fname.trim(), title: ftitle.trim() || null, phone: fphone.trim() || null, email: femail.trim() || null }),
+      })
+      if (res.ok) {
+        const newContact = await res.json() as Contact
+        setContacts((p) => [...p, newContact])
+        setShowAdd(false); resetForm()
+      }
+    } finally { setFsaving(false) }
+  }
+
+  async function handleEdit() {
+    if (!editingId || !fname.trim() || fsaving) return
+    setFsaving(true)
+    try {
+      const res = await fetch(`/api/contacts/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: fname.trim(), title: ftitle.trim() || null, phone: fphone.trim() || null, email: femail.trim() || null }),
+      })
+      if (res.ok) {
+        const u = await res.json() as Contact
+        setContacts((p) => p.map((c) => c.id === editingId ? u : c))
+        setEditingId(null); resetForm()
+      }
+    } finally { setFsaving(false) }
+  }
+
+  async function handleDelete(id: string) {
+    const res = await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
+    if (res.ok || res.status === 204) { setContacts((p) => p.filter((c) => c.id !== id)); setConfirmDel(null) }
+  }
+
+  function contactForm(onSave: () => void, label: string) {
+    return (
+      <div style={{ padding: '10px 12px', borderRadius: 7, background: 'var(--bg3)', border: '1px solid var(--bg4)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Name *</label>
+          <input value={fname} onChange={(e) => setFname(e.target.value)} placeholder="Jane Smith" style={inputStyle} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Title</label>
+          <input value={ftitle} onChange={(e) => setFtitle(e.target.value)} placeholder="VP Operations" style={inputStyle} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Phone</label>
+            <input type="tel" value={fphone} onChange={(e) => setFphone(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Email</label>
+            <input type="email" value={femail} onChange={(e) => setFemail(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={onSave}
+            disabled={!fname.trim() || fsaving}
+            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6, border: 'none', background: fname.trim() ? 'var(--accent)' : 'var(--bg4)', color: fname.trim() ? '#fff' : 'var(--text3)', cursor: fname.trim() ? 'pointer' : 'not-allowed' }}
+          >
+            {fsaving ? 'Saving…' : label}
+          </button>
+          <button onClick={cancelForm} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--bg4)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer' }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Section
+      title="Contacts"
+      action={!showAdd && !editingId ? (
+        <button
+          onClick={beginAdd}
+          style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          + Add
+        </button>
+      ) : undefined}
+    >
+      {contacts.length === 0 && !showAdd && (
+        <p style={{ fontSize: 13, color: 'var(--text3)' }}>No contacts yet.</p>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {contacts.map((c) => (
+          <div key={c.id}>
+            {editingId === c.id ? contactForm(handleEdit, 'Save') : (
+              <div style={{ padding: '10px 12px', borderRadius: 7, background: 'var(--bg3)', border: '1px solid var(--bg4)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '0 0 1px' }}>{c.name}</p>
+                    {c.title && <p style={{ fontSize: 12, color: 'var(--text3)', margin: '0 0 6px' }}>{c.title}</p>}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: c.title ? 0 : 6 }}>
+                      {c.phone && (
+                        <a href={`tel:${c.phone}`} style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none', padding: '2px 8px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                          Call {c.phone}
+                        </a>
+                      )}
+                      {c.email && (
+                        <a href={`mailto:${c.email}`} style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none', padding: '2px 8px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                          Email {c.email}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  {confirmDel === c.id ? (
+                    <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                      <button onClick={() => handleDelete(c.id)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer' }}>Delete</button>
+                      <button onClick={() => setConfirmDel(null)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--bg4)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer' }}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => beginEdit(c)} style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Edit</button>
+                      <button onClick={() => setConfirmDel(c.id)} style={{ padding: 0, background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        {showAdd && contactForm(handleAdd, 'Add Contact')}
+      </div>
+    </Section>
+  )
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bg4)' }}>
-      <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)', marginBottom: 12 }}>
-        {title}
-      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text3)', margin: 0 }}>
+          {title}
+        </p>
+        {action}
+      </div>
       {children}
     </div>
   )
@@ -445,6 +622,7 @@ function DrawerBody({
   onClose, onStageChange, onActTypeChange, onActDescChange, onActDateChange, onLogActivity,
   onRefetch,
 }: DrawerBodyProps) {
+  const router = useRouter()
   const needsAttention = detail.daysInStage > 45
   const [pendingStage, setPendingStage] = useState(detail.stage ?? '')
   const [stageSaved,   setStageSaved]   = useState(false)
@@ -456,6 +634,24 @@ function DrawerBody({
   const [saving,      setSaving]      = useState(false)
   const [editSaved,   setEditSaved]   = useState(false)
   const [editError,   setEditError]   = useState('')
+
+  // Contacts
+  const [contacts, setContacts] = useState<Contact[]>([])
+  useEffect(() => {
+    fetch(`/api/contacts?opportunityId=${detail.id}`)
+      .then((r) => r.json())
+      .then((data: Contact[]) => setContacts(data))
+      .catch(() => {})
+  }, [detail.id])
+
+  function handleGenerateOutreach() {
+    const first = contacts[0]
+    const p = new URLSearchParams({ company: detail.company })
+    if (first?.name)  p.set('contactName',  first.name)
+    if (first?.title) p.set('contactTitle', first.title)
+    if (first?.email) p.set('contactEmail', first.email)
+    router.push(`/outreach?${p.toString()}`)
+  }
 
   useEffect(() => { setPendingStage(detail.stage ?? '') }, [detail.stage])
 
@@ -543,6 +739,16 @@ function DrawerBody({
           {editSaved && (
             <span style={{ fontSize: 12, fontWeight: 600, color: '#34d399' }}>✓ Saved</span>
           )}
+          <button
+            onClick={handleGenerateOutreach}
+            style={{
+              fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 6,
+              border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Generate Outreach
+          </button>
           {/* Pencil edit button */}
           <button
             onClick={editMode ? cancelEdit : enterEdit}
@@ -743,7 +949,14 @@ function DrawerBody({
           )}
         </Section>
 
-        {/* ── Section 2: Stage History ── */}
+        {/* ── Section 2: Contacts ── */}
+        <OppContactsSection
+          opportunityId={detail.id}
+          contacts={contacts}
+          setContacts={setContacts}
+        />
+
+        {/* ── Section 3: Stage History ── */}
         <Section title={`Stage History (${detail.stageHistory.length})`}>
           {detail.stageHistory.length === 0 ? (
             <p style={{ fontSize: 13, color: 'var(--text3)' }}>No stage transitions recorded.</p>

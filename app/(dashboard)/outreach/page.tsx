@@ -3,7 +3,7 @@ import { getTenant } from '@/lib/tenant'
 import { db } from '@/lib/db'
 import { redirect } from 'next/navigation'
 import { OutreachClient } from './_components/OutreachClient'
-import type { HistoryRow } from './_components/OutreachClient'
+import type { HistoryRow, OutreachClientProps } from './_components/OutreachClient'
 
 export const metadata = { title: 'Outreach' }
 
@@ -17,8 +17,11 @@ export default async function OutreachPage({
   if (!tenant) redirect('/login')
 
   const params = await searchParams
-  const initialCompany  = typeof params.company  === 'string' ? params.company  : ''
-  const initialResearch = typeof params.research === 'string' ? params.research : ''
+  const initialCompany      = typeof params.company      === 'string' ? params.company      : ''
+  const initialResearch     = typeof params.research     === 'string' ? params.research     : ''
+  const initialContactName  = typeof params.contactName  === 'string' ? params.contactName  : ''
+  const initialContactTitle = typeof params.contactTitle === 'string' ? params.contactTitle : ''
+  const initialContactEmail = typeof params.contactEmail === 'string' ? params.contactEmail : ''
 
   const drafts = await db.outreachDraft.findMany({
     where:   { tenantId: tenant.id },
@@ -40,11 +43,14 @@ export default async function OutreachPage({
     createdAtMs:      d.createdAt.getTime(),
   }))
 
-  return (
-    <OutreachClient
-      initialHistory={initialHistory}
-      initialCompany={initialCompany}
-      initialResearch={initialResearch}
-    />
-  )
+  const props: OutreachClientProps = {
+    initialHistory,
+    initialCompany,
+    initialResearch,
+    initialContactName,
+    initialContactTitle,
+    initialContactEmail,
+  }
+
+  return <OutreachClient {...props} />
 }

@@ -225,6 +225,7 @@ model Tenant {
   signals            Signal[]
   savedSearches      SavedSearch[]
   outreachDrafts     OutreachDraft[]
+  contacts           Contact[]
 
   @@index([slug])
 }
@@ -345,6 +346,7 @@ model Lead {
   opportunities Opportunity[]
   convertedFrom  Signal[]       @relation("ConvertedFromSignal")
   outreachDrafts OutreachDraft[]
+  contacts       Contact[]
 
   @@index([tenantId])
   @@index([tenantId, stage])
@@ -381,6 +383,30 @@ model Note {
 
   @@index([leadId])
   @@index([tenantId])
+}
+
+// ─── CONTACTS ────────────────────────────────────────────────────────────────
+// Named individuals at a prospect — linked to a Lead and/or Opportunity.
+
+model Contact {
+  id            String   @id @default(cuid())
+  tenantId      String
+  leadId        String?
+  opportunityId String?
+  name          String
+  title         String?
+  phone         String?
+  email         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([leadId])
+  @@index([opportunityId])
 }
 
 // ─── CUSTOMERS ───────────────────────────────────────────────────────────────
@@ -482,6 +508,7 @@ model Opportunity {
   customer     Customer?            @relation(fields: [customerId], references: [id])
   products     OpportunityProduct[]
   stageHistory StageHistory[]
+  contacts     Contact[]
 
   @@index([tenantId])
   @@index([leadId])

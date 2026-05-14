@@ -1,7 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { LeadRow } from './OpportunitiesClient'
+
+interface Contact {
+  id:    string
+  name:  string
+  title: string | null
+  phone: string | null
+  email: string | null
+}
 
 interface LeadDetail {
   id:           string
@@ -115,10 +124,12 @@ export function LeadDrawer({ leadId, reps, onClose, onLeadUpdate, onConvert }: {
   onLeadUpdate: (id: string, patch: Partial<LeadRow>) => void
   onConvert:    (leadId: string) => void
 }) {
-  const [detail,  setDetail]  = useState<LeadDetail | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [saveErr, setSaveErr] = useState('')
+  const [detail,   setDetail]   = useState<LeadDetail | null>(null)
+  const [loading,  setLoading]  = useState(false)
+  const [editing,  setEditing]  = useState(false)
+  const [saveErr,  setSaveErr]  = useState('')
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const router = useRouter()
 
   const [eCompany,      setECompany]      = useState('')
   const [eContact,      setEContact]      = useState('')
@@ -140,16 +151,31 @@ export function LeadDrawer({ leadId, reps, onClose, onLeadUpdate, onConvert }: {
   const [logSubmitting, setLogSubmitting] = useState(false)
 
   useEffect(() => {
-    if (!leadId) { setDetail(null); setEditing(false); return }
+    if (!leadId) { setDetail(null); setEditing(false); setContacts([]); return }
     setLoading(true)
     setEditing(false)
     setLogExpanded(false)
     setLogDesc('')
+    setContacts([])
     fetch(`/api/leads/${leadId}`)
       .then((r) => r.json())
       .then((d: LeadDetail) => { setDetail(d); setLoading(false) })
       .catch(() => setLoading(false))
+    fetch(`/api/contacts?leadId=${leadId}`)
+      .then((r) => r.json())
+      .then((data: Contact[]) => setContacts(data))
+      .catch(() => {})
   }, [leadId])
+
+  function handleGenerateOutreach() {
+    if (!detail) return
+    const first = contacts[0]
+    const p = new URLSearchParams({ company: detail.company })
+    if (first?.name)  p.set('contactName',  first.name)
+    if (first?.title) p.set('contactTitle', first.title)
+    if (first?.email) p.set('contactEmail', first.email)
+    router.push(`/outreach?${p.toString()}`)
+  }
 
   function enterEdit() {
     if (!detail) return
@@ -275,9 +301,9 @@ export function LeadDrawer({ leadId, reps, onClose, onLeadUpdate, onConvert }: {
             {/* Header */}
             <div style={{
               padding: '18px 20px 16px', borderBottom: '1px solid var(--bg4)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 10,
             }}>
-              <div>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: '0 0 2px' }}>
                   {detail?.company ?? 'Lead'}
                 </h2>
@@ -288,12 +314,26 @@ export function LeadDrawer({ leadId, reps, onClose, onLeadUpdate, onConvert }: {
                   </p>
                 )}
               </div>
-              <button
-                onClick={onClose}
-                style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '2px 6px' }}
-              >
-                ×
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                {detail && (
+                  <button
+                    onClick={handleGenerateOutreach}
+                    style={{
+                      fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 6,
+                      border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Generate Outreach
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '2px 6px' }}
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
             {/* Body */}
@@ -429,6 +469,14 @@ export function LeadDrawer({ leadId, reps, onClose, onLeadUpdate, onConvert }: {
                       </div>
                     )}
                   </Section>
+
+                  {/* ── Contacts ── */}
+                  <ContactsSection
+                    linkField="leadId"
+                    entityId={detail.id}
+                    contacts={contacts}
+                    setContacts={setContacts}
+                  />
 
                   {/* ── Linked Signal ── */}
                   {detail.convertedFrom.length > 0 && (
@@ -568,6 +616,181 @@ export function LeadDrawer({ leadId, reps, onClose, onLeadUpdate, onConvert }: {
         )}
       </div>
     </>
+  )
+}
+
+// ── Contacts ──────────────────────────────────────────────────────────────────
+
+function ContactsSection({
+  linkField, entityId, contacts, setContacts,
+}: {
+  linkField:   'leadId' | 'opportunityId'
+  entityId:    string
+  contacts:    Contact[]
+  setContacts: React.Dispatch<React.SetStateAction<Contact[]>>
+}) {
+  const [showAdd,     setShowAdd]     = useState(false)
+  const [editingId,   setEditingId]   = useState<string | null>(null)
+  const [confirmDel,  setConfirmDel]  = useState<string | null>(null)
+  const [fname,       setFname]       = useState('')
+  const [ftitle,      setFtitle]      = useState('')
+  const [fphone,      setFphone]      = useState('')
+  const [femail,      setFemail]      = useState('')
+  const [fsaving,     setFsaving]     = useState(false)
+  const [formError,   setFormError]   = useState('')
+
+  function resetForm() { setFname(''); setFtitle(''); setFphone(''); setFemail('') }
+
+  function beginAdd() { setEditingId(null); resetForm(); setShowAdd(true) }
+
+  function beginEdit(c: Contact) {
+    setShowAdd(false)
+    setFname(c.name); setFtitle(c.title ?? ''); setFphone(c.phone ?? ''); setFemail(c.email ?? '')
+    setEditingId(c.id)
+  }
+
+  function cancelForm() { setShowAdd(false); setEditingId(null); resetForm(); setFormError('') }
+
+  async function handleAdd() {
+    if (!fname.trim() || fsaving) return
+    setFsaving(true)
+    setFormError('')
+    const payload = { [linkField]: entityId, name: fname.trim(), title: ftitle.trim() || null, phone: fphone.trim() || null, email: femail.trim() || null }
+    console.log('[contacts] POST payload:', payload)
+    try {
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        const newContact = await res.json() as Contact
+        setContacts((p) => [...p, newContact])
+        setShowAdd(false); resetForm()
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        const msg = data.error ?? `Save failed (${res.status})`
+        console.error('[contacts] POST failed:', res.status, data)
+        setFormError(msg)
+      }
+    } catch (e) {
+      console.error('[contacts] POST error:', e)
+      setFormError('Network error — please try again')
+    } finally { setFsaving(false) }
+  }
+
+  async function handleEdit() {
+    if (!editingId || !fname.trim() || fsaving) return
+    setFsaving(true)
+    try {
+      const res = await fetch(`/api/contacts/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: fname.trim(), title: ftitle.trim() || null, phone: fphone.trim() || null, email: femail.trim() || null }),
+      })
+      if (res.ok) {
+        const u = await res.json() as Contact
+        setContacts((p) => p.map((c) => c.id === editingId ? u : c))
+        setEditingId(null); resetForm()
+      }
+    } finally { setFsaving(false) }
+  }
+
+  async function handleDelete(id: string) {
+    const res = await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
+    if (res.ok || res.status === 204) {
+      setContacts((p) => p.filter((c) => c.id !== id))
+      setConfirmDel(null)
+    }
+  }
+
+  function contactForm(onSave: () => void, label: string) {
+    return (
+      <div style={{ padding: '10px 12px', borderRadius: 7, background: 'var(--bg3)', border: '1px solid var(--bg4)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <Field label="Name *">
+          <input value={fname} onChange={(e) => setFname(e.target.value)} placeholder="Jane Smith" style={inputStyle} />
+        </Field>
+        <Field label="Title">
+          <input value={ftitle} onChange={(e) => setFtitle(e.target.value)} placeholder="VP Operations" style={inputStyle} />
+        </Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Field label="Phone">
+            <input type="tel" value={fphone} onChange={(e) => setFphone(e.target.value)} style={inputStyle} />
+          </Field>
+          <Field label="Email">
+            <input type="email" value={femail} onChange={(e) => setFemail(e.target.value)} style={inputStyle} />
+          </Field>
+        </div>
+        {formError && (
+          <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{formError}</p>
+        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={onSave}
+            disabled={!fname.trim() || fsaving}
+            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6, border: 'none', background: fname.trim() ? 'var(--accent)' : 'var(--bg4)', color: fname.trim() ? '#fff' : 'var(--text3)', cursor: fname.trim() ? 'pointer' : 'not-allowed' }}
+          >
+            {fsaving ? 'Saving…' : label}
+          </button>
+          <button onClick={cancelForm} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--bg4)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer' }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Section
+      title="Contacts"
+      action={!showAdd && !editingId ? (
+        <button onClick={beginAdd} style={ghostBtn}>+ Add</button>
+      ) : undefined}
+    >
+      {contacts.length === 0 && !showAdd && (
+        <p style={{ fontSize: 12, color: 'var(--text3)', margin: 0 }}>No contacts yet.</p>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {contacts.map((c) => (
+          <div key={c.id}>
+            {editingId === c.id ? contactForm(handleEdit, 'Save') : (
+              <div style={{ padding: '10px 12px', borderRadius: 7, background: 'var(--bg3)', border: '1px solid var(--bg4)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '0 0 1px' }}>{c.name}</p>
+                    {c.title && <p style={{ fontSize: 12, color: 'var(--text3)', margin: '0 0 6px' }}>{c.title}</p>}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: c.title ? 0 : 6 }}>
+                      {c.phone && (
+                        <a href={`tel:${c.phone}`} style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none', padding: '2px 8px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                          Call {c.phone}
+                        </a>
+                      )}
+                      {c.email && (
+                        <a href={`mailto:${c.email}`} style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none', padding: '2px 8px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                          Email {c.email}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  {confirmDel === c.id ? (
+                    <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                      <button onClick={() => handleDelete(c.id)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer' }}>Delete</button>
+                      <button onClick={() => setConfirmDel(null)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--bg4)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer' }}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => beginEdit(c)} style={{ ...ghostBtn, fontSize: 11 }}>Edit</button>
+                      <button onClick={() => setConfirmDel(c.id)} style={{ padding: 0, background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        {showAdd && contactForm(handleAdd, 'Add Contact')}
+      </div>
+    </Section>
   )
 }
 

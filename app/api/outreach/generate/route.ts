@@ -47,14 +47,23 @@ export async function POST(request: NextRequest) {
     channel?:         string
     tone?:            string
     researchContext?: Record<string, unknown>
+    contactName?:     string
+    contactTitle?:    string
+    contactEmail?:    string
   }
 
   const companyName = body.companyName?.trim()
   if (!companyName) return NextResponse.json({ error: 'Company name is required' }, { status: 400 })
 
-  const channel = body.channel === 'CALL_SCRIPT' ? 'CALL_SCRIPT' : 'EMAIL'
-  const tone    = body.tone ?? 'Professional'
-  const toneDesc = TONE_DESCRIPTIONS[tone] ?? TONE_DESCRIPTIONS['Professional']
+  const channel      = body.channel === 'CALL_SCRIPT' ? 'CALL_SCRIPT' : 'EMAIL'
+  const tone         = body.tone ?? 'Professional'
+  const toneDesc     = TONE_DESCRIPTIONS[tone] ?? TONE_DESCRIPTIONS['Professional']
+  const contactName  = body.contactName?.trim()
+  const contactTitle = body.contactTitle?.trim()
+  const contactEmail = body.contactEmail?.trim()
+
+  const contactParts = [contactName, contactTitle, contactEmail].filter(Boolean)
+  const contactLine  = contactParts.length ? `Contact: ${contactParts.join(', ')}` : ''
 
   const researchSection = body.researchContext
     ? `\nResearch context for ${companyName}:\n${formatResearchContext(body.researchContext)}\n`
@@ -63,19 +72,29 @@ export async function POST(request: NextRequest) {
   let userContent: string
 
   if (channel === 'EMAIL') {
-    userContent = `Write a cold outreach email to a prospect at ${companyName}.
+    const addressee = contactName
+      ? `${contactName}${contactTitle ? ` (${contactTitle})` : ''} at ${companyName}`
+      : `a prospect at ${companyName}`
+    userContent = `Write a cold outreach email to ${addressee}.
 
 Tone: ${toneDesc}
-${researchSection}
+${contactLine ? contactLine + '\n' : ''}${researchSection}
+Address the contact by first name in the greeting if a name is provided. Do not use placeholders like [Customer Name] or [Email].${contactEmail ? ` The recipient's email address is ${contactEmail} — include it in the To: line at the top of the email.` : ''}
+
 Format your response exactly as:
-Subject: [subject line]
+${contactEmail ? `To: ${contactEmail}\n` : ''}Subject: [subject line]
 
 [email body]`
   } else {
-    userContent = `Write a cold call script for reaching out to ${companyName}.
+    const addressee = contactName
+      ? `${contactName}${contactTitle ? ` (${contactTitle})` : ''} at ${companyName}`
+      : `a prospect at ${companyName}`
+    userContent = `Write a cold call script for reaching out to ${addressee}.
 
 Tone: ${toneDesc}
-${researchSection}
+${contactLine ? contactLine + '\n' : ''}${researchSection}
+Use the contact's first name where natural if a name is provided.
+
 Format your response exactly as:
 
 OPENER
