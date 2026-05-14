@@ -189,6 +189,11 @@ enum SignalStatus {
   DISMISSED
 }
 
+enum SavedSearchFrequency {
+  DAILY
+  WEEKLY
+}
+
 // ─── TENANT ──────────────────────────────────────────────────────────────────
 
 model Tenant {
@@ -213,6 +218,7 @@ model Tenant {
   customerLocations  CustomerLocation[]
   pipelineTargets    PipelineTarget[]
   signals            Signal[]
+  savedSearches      SavedSearch[]
 
   @@index([slug])
 }
@@ -667,4 +673,20 @@ model Signal {
   @@index([tenantId, type])
   @@index([tenantId, priority])
   @@index([assignedToId])
+}
+
+// ─── SAVED SEARCHES ───────────────────────────────────────────────────────────
+
+model SavedSearch {
+  id        String               @id @default(cuid())
+  tenantId  String
+  name      String
+  query     String
+  isActive  Boolean              @default(true)
+  frequency SavedSearchFrequency @default(DAILY)
+  createdAt DateTime             @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
