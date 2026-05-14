@@ -211,6 +211,23 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Integrations
+  mapboxToken   String?
+  anthropicKey  String?
+
+  // Branding
+  accentColor   String?
+  logoUrl       String?
+
+  // Team targets
+  monthlyLeadGoal          Int?
+  monthlyRevenueTarget     Float?
+  quarterlyRevenueTarget   Float?
+  annualRevenueTarget      Float?
+  monthlyOutreachTarget    Int?
+  quarterlyOutreachTarget  Int?
+  annualOutreachTarget     Int?
+
   users              User[]
   leads              Lead[]
   customers          Customer[]
@@ -226,6 +243,7 @@ model Tenant {
   savedSearches      SavedSearch[]
   outreachDrafts     OutreachDraft[]
   contacts           Contact[]
+  repTargets         RepTarget[]
 
   @@index([slug])
 }
@@ -258,6 +276,7 @@ model User {
   pipelineTargets PipelineTarget[]
   assignedSignals Signal[]         @relation("AssignedSignals")
   outreachDrafts  OutreachDraft[]
+  repTarget       RepTarget?
 
   @@index([tenantId])
   @@index([email])
@@ -722,6 +741,31 @@ model SavedSearch {
   createdAt DateTime             @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ─── REP TARGETS ──────────────────────────────────────────────────────────────
+// Per-rep sales targets. One row per user per tenant.
+
+model RepTarget {
+  id       String @id @default(cuid())
+  tenantId String
+  userId   String @unique
+
+  monthlyLeadGoal          Int?
+  monthlyRevenueTarget     Float?
+  quarterlyRevenueTarget   Float?
+  annualRevenueTarget      Float?
+  weeklyOutreachTarget     Int?
+  monthlyOutreachTarget    Int?
+  quarterlyOutreachTarget  Int?
+  annualOutreachTarget     Int?
+
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
 }

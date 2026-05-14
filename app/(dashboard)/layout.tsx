@@ -78,7 +78,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           '--brand':  branding.primaryColor,
         } as React.CSSProperties}
       >
-        <Sidebar signalCount={signalCount} />
+        <Sidebar signalCount={signalCount} userRole={session.user.role} />
 
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <Topbar

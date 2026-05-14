@@ -175,10 +175,12 @@ export function TerritoryMapClient({
   pins,
   reps,
   currentUserId,
+  mapboxToken,
 }: {
   pins: MapPin[]
   reps: MapRep[]
   currentUserId: string
+  mapboxToken: string | null
 }) {
   const { config } = useTenant()
 
@@ -522,11 +524,20 @@ export function TerritoryMapClient({
               >
                 Territory Map
               </p>
-              <p style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.6 }}>
-                Add your Mapbox API key in{' '}
-                <span style={{ color: 'var(--text2)' }}>Settings → Integrations</span> to
-                activate.
-              </p>
+              {mapboxToken ? (
+                <p style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.6 }}>
+                  Mapbox token configured.{' '}
+                  <span style={{ color: 'var(--text2)' }}>
+                    Full map rendering coming soon.
+                  </span>
+                </p>
+              ) : (
+                <p style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.6 }}>
+                  Add your Mapbox API key in{' '}
+                  <span style={{ color: 'var(--text2)' }}>Settings → Integrations</span> to
+                  activate.
+                </p>
+              )}
             </div>
 
             {pins.length > 0 && (

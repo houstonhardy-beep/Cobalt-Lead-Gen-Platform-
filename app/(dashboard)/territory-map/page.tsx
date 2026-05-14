@@ -73,5 +73,12 @@ export default async function TerritoryMapPage() {
     name: r.name ?? 'Unknown',
   }))
 
-  return <TerritoryMapClient pins={pins} reps={reps} currentUserId={session.user.id} />
+  return (
+    <TerritoryMapClient
+      pins={pins}
+      reps={reps}
+      currentUserId={session.user.id}
+      mapboxToken={tenant.mapboxToken ?? null}
+    />
+  )
 }

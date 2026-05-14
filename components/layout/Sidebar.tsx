@@ -3,12 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const BOTTOM_NAV = [
-  { href: '/settings', label: 'Settings', icon: IconSettings },
-]
-
-export function Sidebar({ signalCount = 0 }: { signalCount?: number }) {
+export function Sidebar({ signalCount = 0, userRole }: { signalCount?: number; userRole?: string }) {
   const pathname = usePathname()
+  const isAdmin = userRole === 'TENANT_ADMIN' || userRole === 'COBALT_SUPER_ADMIN'
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/'
@@ -50,14 +47,14 @@ export function Sidebar({ signalCount = 0 }: { signalCount?: number }) {
         ))}
       </nav>
 
-      {/* Bottom nav */}
-      <div className="py-3 px-2 space-y-0.5" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
-        {BOTTOM_NAV.map(({ href, label, icon: Icon }) => (
-          <NavItem key={href} href={href} label={label} active={isActive(href)} badge={0}>
-            <Icon />
+      {/* Bottom nav — Settings visible to admins only */}
+      {isAdmin && (
+        <div className="py-3 px-2 space-y-0.5" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
+          <NavItem href="/settings" label="Settings" active={isActive('/settings')} badge={0}>
+            <IconSettings />
           </NavItem>
-        ))}
-      </div>
+        </div>
+      )}
     </aside>
   )
 }

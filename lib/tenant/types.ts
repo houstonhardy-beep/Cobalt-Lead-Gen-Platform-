@@ -126,4 +126,21 @@ export interface ResolvedTenant {
   branding: TenantBranding
   createdAt: Date
   updatedAt: Date
+
+  // Integrations
+  mapboxToken:  string | null
+  anthropicKey: string | null
+
+  // Branding overrides
+  accentColor: string | null
+  logoUrl:     string | null
+
+  // Team targets
+  monthlyLeadGoal:          number | null
+  monthlyRevenueTarget:     number | null
+  quarterlyRevenueTarget:   number | null
+  annualRevenueTarget:      number | null
+  monthlyOutreachTarget:    number | null
+  quarterlyOutreachTarget:  number | null
+  annualOutreachTarget:     number | null
 }
