@@ -194,6 +194,11 @@ enum SavedSearchFrequency {
   WEEKLY
 }
 
+enum OutreachChannel {
+  EMAIL
+  CALL_SCRIPT
+}
+
 // ─── TENANT ──────────────────────────────────────────────────────────────────
 
 model Tenant {
@@ -219,6 +224,7 @@ model Tenant {
   pipelineTargets    PipelineTarget[]
   signals            Signal[]
   savedSearches      SavedSearch[]
+  outreachDrafts     OutreachDraft[]
 
   @@index([slug])
 }
@@ -250,6 +256,7 @@ model User {
   stageHistory    StageHistory[]
   pipelineTargets PipelineTarget[]
   assignedSignals Signal[]         @relation("AssignedSignals")
+  outreachDrafts  OutreachDraft[]
 
   @@index([tenantId])
   @@index([email])
@@ -336,7 +343,8 @@ model Lead {
   notesList     Note[]
   outreachLog   OutreachLog[]
   opportunities Opportunity[]
-  convertedFrom Signal[]      @relation("ConvertedFromSignal")
+  convertedFrom  Signal[]       @relation("ConvertedFromSignal")
+  outreachDrafts OutreachDraft[]
 
   @@index([tenantId])
   @@index([tenantId, stage])
@@ -689,4 +697,28 @@ model SavedSearch {
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
+}
+
+// ─── OUTREACH DRAFTS ──────────────────────────────────────────────────────────
+// AI-generated outreach content. Separate from OutreachLog (sent activity).
+
+model OutreachDraft {
+  id               String          @id @default(cuid())
+  tenantId         String
+  leadId           String?
+  companyName      String
+  channel          OutreachChannel
+  tone             String
+  researchContext  Json?
+  generatedContent String
+  feedback         String?
+  createdAt        DateTime        @default(now())
+  createdById      String
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id])
+  lead      Lead?  @relation(fields: [leadId], references: [id])
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
 }

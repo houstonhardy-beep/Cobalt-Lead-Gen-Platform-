@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -95,10 +96,10 @@ function CompanyResearchSection() {
   const [deepError, setDeepError]     = useState<string | null>(null)
   const [deepResult, setDeepResult]   = useState<DeepResult | null>(null)
 
-  const [suggestions, setSuggestions]           = useState<Suggestion[]>([])
+  const [suggestions, setSuggestions]               = useState<Suggestion[]>([])
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
 
-  const [toast, setToast] = useState(false)
+  const router = useRouter()
 
   async function handleResearch(companyOverride?: string) {
     const company = (companyOverride ?? query).trim()
@@ -172,8 +173,13 @@ function CompanyResearchSection() {
   }
 
   function handleGenerateOutreach() {
-    setToast(true)
-    setTimeout(() => setToast(false), 3000)
+    if (!result) return
+    const researchData = {
+      stage1: result.brief,
+      stage2: deepResult?.brief ?? null,
+    }
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(researchData))))
+    router.push(`/outreach?company=${encodeURIComponent(result.company)}&research=${encoded}`)
   }
 
   return (
@@ -327,30 +333,6 @@ function CompanyResearchSection() {
       {/* Stage 2 result */}
       {deepResult && !deepLoading && <DeepBriefCard result={deepResult} />}
 
-      {/* Coming soon toast */}
-      {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 28,
-            right: 28,
-            zIndex: 100,
-            background: '#1e293b',
-            border: '1px solid var(--bg4)',
-            borderRadius: 8,
-            padding: '10px 18px',
-            fontSize: 13,
-            color: '#fff',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <span style={{ color: '#f59e0b' }}>⚡</span>
-          Outreach generation coming soon.
-        </div>
-      )}
     </section>
   )
 }

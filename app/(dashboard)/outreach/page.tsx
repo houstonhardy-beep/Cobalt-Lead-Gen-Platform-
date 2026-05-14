@@ -1,15 +1,50 @@
-export default function OutreachPage() {
-  return (
-    <div>
-      <h1 className="text-xl font-semibold mb-1" style={{ color: 'var(--text)' }}>Outreach</h1>
-      <p className="text-sm mb-6" style={{ color: 'var(--text2)' }}>Email and SMS outreach log and composer.</p>
+import { requireAuth } from '@/lib/auth'
+import { getTenant } from '@/lib/tenant'
+import { db } from '@/lib/db'
+import { redirect } from 'next/navigation'
+import { OutreachClient } from './_components/OutreachClient'
+import type { HistoryRow } from './_components/OutreachClient'
 
-      <div
-        className="rounded-lg p-8 text-center"
-        style={{ background: 'var(--bg2)', border: '1px solid var(--bg4)' }}
-      >
-        <p style={{ color: 'var(--text3)' }}>Outreach tools coming soon.</p>
-      </div>
-    </div>
+export const metadata = { title: 'Outreach' }
+
+export default async function OutreachPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  await requireAuth()
+  const tenant = await getTenant()
+  if (!tenant) redirect('/login')
+
+  const params = await searchParams
+  const initialCompany  = typeof params.company  === 'string' ? params.company  : ''
+  const initialResearch = typeof params.research === 'string' ? params.research : ''
+
+  const drafts = await db.outreachDraft.findMany({
+    where:   { tenantId: tenant.id },
+    orderBy: { createdAt: 'desc' },
+    take:    50,
+    select: {
+      id: true, companyName: true, channel: true, tone: true,
+      generatedContent: true, feedback: true, createdAt: true,
+    },
+  })
+
+  const initialHistory: HistoryRow[] = drafts.map((d) => ({
+    id:               d.id,
+    companyName:      d.companyName,
+    channel:          d.channel as 'EMAIL' | 'CALL_SCRIPT',
+    tone:             d.tone,
+    generatedContent: d.generatedContent,
+    feedback:         d.feedback,
+    createdAtMs:      d.createdAt.getTime(),
+  }))
+
+  return (
+    <OutreachClient
+      initialHistory={initialHistory}
+      initialCompany={initialCompany}
+      initialResearch={initialResearch}
+    />
   )
 }
