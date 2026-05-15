@@ -130,6 +130,7 @@ export interface ResolvedTenant {
   // Integrations
   mapboxToken:  string | null
   anthropicKey: string | null
+  apolloKey:    string | null
 
   // Branding overrides
   accentColor: string | null

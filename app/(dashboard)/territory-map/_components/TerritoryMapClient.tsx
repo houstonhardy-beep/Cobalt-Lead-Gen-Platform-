@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import type { ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 import { useTenant } from '@/lib/tenant/context'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface MapPin {
   id: string
-  title: string
+  pinType: 'opportunity' | 'lead'
+  label: string
   company: string | null
   stage: string | null
   estimatedValue: number | null
@@ -16,8 +18,8 @@ export interface MapPin {
   productCategory: string | null
   lat: number
   lng: number
-  jobSiteCity: string | null
-  jobSiteState: string | null
+  city: string | null
+  state: string | null
   repId: string | null
   repName: string | null
 }
@@ -26,6 +28,29 @@ export interface MapRep {
   id: string
   name: string
 }
+
+// ─── Dynamic import (mapbox-gl accesses browser globals) ──────────────────────
+
+const MapCanvas = dynamic(
+  () => import('./MapCanvas').then((m) => ({ default: m.MapCanvas })),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          background: '#111827',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <span style={{ fontSize: 13, color: '#64748b' }}>Loading map…</span>
+      </div>
+    ),
+  },
+)
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -42,6 +67,20 @@ const STAGE_META: Record<string, { label: string; color: string }> = {
   CLOSED_LOST:   { label: 'Lost',          color: '#f87171' },
   NURTURE:       { label: 'Nurture',       color: '#64748b' },
 }
+
+const STAGE_COLOR_LEGEND = [
+  { label: 'Signal',        color: '#94a3b8' },
+  { label: 'Prospect',      color: '#93c5fd' },
+  { label: 'Outreach Sent', color: '#fbbf24' },
+  { label: 'Engaged',       color: '#fb923c' },
+  { label: 'Qualified',     color: '#a78bfa' },
+  { label: 'Proposal',      color: '#f9a8d4' },
+  { label: 'Proposal Sent', color: '#f97316' },
+  { label: 'Negotiation',   color: '#ef4444' },
+  { label: 'Won',           color: '#22c55e' },
+  { label: 'Lost',          color: '#475569' },
+  { label: 'Nurture',       color: '#2dd4bf' },
+]
 
 const JOB_TYPE_LABEL: Record<string, string> = {
   NEW_CONSTRUCTION:   'New Construction',
@@ -150,25 +189,6 @@ function FilterSelect({
   )
 }
 
-// ─── Pin popup data spec ──────────────────────────────────────────────────────
-//
-// When Mapbox is wired in, each filtered pin renders as a circle marker:
-//   • Color:  STAGE_META[pin.stage].color
-//   • Radius: 8px default; 12px + white outline for pins where pin.repId === currentUserId
-//   • Cluster threshold: 50px proximity
-//
-// onClick popup fields (in order):
-//   1. pin.title        — opportunity name (bold header)
-//   2. pin.company      — company name
-//   3. pin.stage        — stage badge (colored chip)
-//   4. pin.estimatedValue — formatted value
-//   5. pin.jobType      — JOB_TYPE_LABEL[pin.jobType]
-//   6. pin.productCategory — PRODUCT_CATEGORY_LABEL[pin.productCategory]
-//   7. pin.repName      — assigned rep
-//
-// Radius circle: drawn centered on radiusCenter, radius = radiusMiles in miles
-// (convert to meters for Mapbox: radiusMiles * 1609.344)
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function TerritoryMapClient({
@@ -184,9 +204,28 @@ export function TerritoryMapClient({
 }) {
   const { config } = useTenant()
 
+  // Kick off geocoding on mount so any city/state-only records get coords
+  useEffect(() => {
+    if (!mapboxToken) return
+    fetch('/api/geocode', { method: 'POST' }).catch(() => {})
+  }, [mapboxToken])
+
+  // User geolocation — used as radius center when available
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {}, // denied / error → stay on tenant HQ / Alabama fallback
+      { timeout: 8000, maximumAge: 300_000 },
+    )
+  }, [])
+
   // Filter state
   const [view, setView] = useState<'all' | 'mine'>('all')
+  const [colorMode, setColorMode] = useState<'type' | 'stage'>('type')
   const [repFilter, setRepFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState<'all' | 'opportunity' | 'lead'>('all')
   const [stageFilter, setStageFilter] = useState('all')
   const [jobTypeFilter, setJobTypeFilter] = useState('all')
   const [productFilter, setProductFilter] = useState('all')
@@ -196,8 +235,11 @@ export function TerritoryMapClient({
   const [radiusInput, setRadiusInput] = useState('50')
   const [activeMiles, setActiveMiles] = useState<number | null>(null)
 
-  // Radius center: tenant HQ → centroid of all pins → Alabama center
+  // Radius center: user location → tenant HQ → centroid of all pins → Alabama center
   const radiusCenter = useMemo(() => {
+    if (userLocation) {
+      return { lat: userLocation.lat, lng: userLocation.lng, label: 'your location' }
+    }
     const hq = config.geography?.hq
     if (hq?.lat && hq?.lng && (hq.lat !== 0 || hq.lng !== 0)) {
       return {
@@ -212,7 +254,7 @@ export function TerritoryMapClient({
       return { lat, lng, label: 'territory centroid' }
     }
     return { lat: 32.8, lng: -86.6, label: 'Alabama center' }
-  }, [config, pins])
+  }, [userLocation, config, pins])
 
   // Unique dropdown options derived from pin data
   const uniqueStages = useMemo(
@@ -237,13 +279,14 @@ export function TerritoryMapClient({
     return pins.filter((p) => {
       if (view === 'mine' && p.repId !== currentUserId) return false
       if (view === 'all' && repFilter !== 'all' && p.repId !== repFilter) return false
+      if (typeFilter !== 'all' && p.pinType !== typeFilter) return false
       if (stageFilter !== 'all' && p.stage !== stageFilter) return false
       if (jobTypeFilter !== 'all' && p.jobType !== jobTypeFilter) return false
       if (productFilter !== 'all' && p.productCategory !== productFilter) return false
       if (companyFilter !== 'all' && p.company !== companyFilter) return false
       return true
     })
-  }, [pins, view, repFilter, stageFilter, jobTypeFilter, productFilter, companyFilter, currentUserId])
+  }, [pins, view, repFilter, typeFilter, stageFilter, jobTypeFilter, productFilter, companyFilter, currentUserId])
 
   // Apply radius filter on top
   const radiusPins = useMemo(() => {
@@ -256,19 +299,27 @@ export function TerritoryMapClient({
 
   const visiblePins = activeMiles ? radiusPins : filteredPins
 
-  // Stage breakdown for radius panel
-  const stageBreakdown = useMemo(() => {
+  // Breakdown grouped by pin type for radius panel
+  const typeBreakdown = useMemo(() => {
     if (!activeMiles) return []
-    const groups: Record<string, { count: number; value: number }> = {}
-    for (const p of radiusPins) {
-      const key = p.stage ?? 'UNKNOWN'
-      groups[key] = groups[key] ?? { count: 0, value: 0 }
-      groups[key].count++
-      groups[key].value += p.estimatedValue ?? 0
+    const groups: Record<string, { count: number; value: number; color: string; label: string }> = {
+      lead:        { count: 0, value: 0, color: '#f97316', label: 'Lead' },
+      opportunity: { count: 0, value: 0, color: '#3b82f6', label: 'Opportunity' },
+      won:         { count: 0, value: 0, color: '#22c55e', label: 'Won' },
     }
-    return Object.entries(groups)
-      .sort((a, b) => b[1].value - a[1].value)
-      .map(([stage, { count, value }]) => ({ stage, count, value }))
+    for (const p of radiusPins) {
+      if (p.pinType === 'lead') {
+        groups.lead.count++
+        groups.lead.value += p.estimatedValue ?? 0
+      } else if (p.stage === 'CLOSED_WON') {
+        groups.won.count++
+        groups.won.value += p.estimatedValue ?? 0
+      } else {
+        groups.opportunity.count++
+        groups.opportunity.value += p.estimatedValue ?? 0
+      }
+    }
+    return Object.values(groups).filter((g) => g.count > 0)
   }, [radiusPins, activeMiles])
 
   const radiusTotalValue = radiusPins.reduce((s, p) => s + (p.estimatedValue ?? 0), 0)
@@ -282,6 +333,9 @@ export function TerritoryMapClient({
     setActiveMiles(null)
     setRadiusInput('50')
   }
+
+  const oppCount = visiblePins.filter((p) => p.pinType === 'opportunity').length
+  const leadCount = visiblePins.filter((p) => p.pinType === 'lead').length
 
   return (
     <div
@@ -335,18 +389,48 @@ export function TerritoryMapClient({
                   cursor: 'pointer',
                 }}
               >
-                {v === 'all' ? 'All Deals' : 'My Deals'}
+                {v === 'all' ? 'All' : 'Mine'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Color mode toggle */}
+        <div>
+          <FieldLabel>Colors</FieldLabel>
+          <div
+            style={{
+              display: 'flex',
+              border: '1px solid var(--bg4)',
+              borderRadius: 6,
+              overflow: 'hidden',
+            }}
+          >
+            {(['type', 'stage'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setColorMode(v)}
+                style={{
+                  padding: '5px 10px',
+                  fontSize: 12,
+                  fontWeight: colorMode === v ? 600 : 400,
+                  background: colorMode === v ? 'var(--brand)' : 'var(--bg3)',
+                  color: colorMode === v ? '#fff' : 'var(--text2)',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {v === 'type' ? 'Type' : 'Stage'}
               </button>
             ))}
           </div>
         </div>
 
         {/* Divider */}
-        <div
-          style={{ width: 1, height: 32, background: 'var(--bg4)', alignSelf: 'center' }}
-        />
+        <div style={{ width: 1, height: 32, background: 'var(--bg4)', alignSelf: 'center' }} />
 
-        {/* Rep — hidden in My Deals mode */}
+        {/* Rep — hidden in My mode */}
         {view === 'all' && (
           <FilterSelect label="Rep" value={repFilter} onChange={setRepFilter}>
             <option value="all">All Reps</option>
@@ -357,6 +441,16 @@ export function TerritoryMapClient({
             ))}
           </FilterSelect>
         )}
+
+        <FilterSelect
+          label="Type"
+          value={typeFilter}
+          onChange={(v) => setTypeFilter(v as 'all' | 'opportunity' | 'lead')}
+        >
+          <option value="all">All Types</option>
+          <option value="opportunity">Opportunities</option>
+          <option value="lead">Leads</option>
+        </FilterSelect>
 
         <FilterSelect label="Stage" value={stageFilter} onChange={setStageFilter}>
           <option value="all">All Stages</option>
@@ -395,9 +489,7 @@ export function TerritoryMapClient({
         </FilterSelect>
 
         {/* Divider */}
-        <div
-          style={{ width: 1, height: 32, background: 'var(--bg4)', alignSelf: 'center' }}
-        />
+        <div style={{ width: 1, height: 32, background: 'var(--bg4)', alignSelf: 'center' }} />
 
         {/* Radius tool */}
         <div>
@@ -460,8 +552,10 @@ export function TerritoryMapClient({
         {/* Pin count */}
         <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>
           <span style={{ fontSize: 12, color: 'var(--text3)' }}>
-            {visiblePins.length}{' '}
-            {visiblePins.length === 1 ? 'opportunity' : 'opportunities'}
+            {visiblePins.length} location{visiblePins.length !== 1 ? 's' : ''}
+            {oppCount > 0 || leadCount > 0
+              ? ` · ${oppCount} opp${oppCount !== 1 ? 's' : ''}, ${leadCount} lead${leadCount !== 1 ? 's' : ''}`
+              : ''}
             {activeMiles ? ` within ${activeMiles} mi of ${radiusCenter.label}` : ''}
           </span>
         </div>
@@ -473,90 +567,90 @@ export function TerritoryMapClient({
           flex: 1,
           position: 'relative',
           overflow: 'hidden',
-          background: 'var(--bg)',
+          background: '#111827',
         }}
       >
-        {/* Placeholder */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
+        {mapboxToken ? (
+          /* Live Mapbox map */
+          <MapCanvas
+            pins={visiblePins}
+            totalPins={pins.length}
+            mapboxToken={mapboxToken}
+            currentUserId={currentUserId}
+            colorMode={colorMode}
+            userLocation={userLocation}
+          />
+        ) : (
+          /* No token — prompt to configure */
           <div
             style={{
+              position: 'absolute',
+              inset: 0,
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              gap: 14,
-              padding: '36px 52px',
-              background: 'var(--bg2)',
-              border: '1px solid var(--bg4)',
-              borderRadius: 12,
-              maxWidth: 400,
-              textAlign: 'center',
+              justifyContent: 'center',
             }}
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--text3)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ width: 44, height: 44 }}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 14,
+                padding: '36px 52px',
+                background: 'var(--bg2)',
+                border: '1px solid var(--bg4)',
+                borderRadius: 12,
+                maxWidth: 400,
+                textAlign: 'center',
+              }}
             >
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-              <circle cx="12" cy="9" r="2.5" />
-            </svg>
-
-            <div>
-              <p
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: 'var(--text)',
-                  marginBottom: 6,
-                }}
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--text3)"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ width: 44, height: 44 }}
               >
-                Territory Map
-              </p>
-              {mapboxToken ? (
-                <p style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.6 }}>
-                  Mapbox token configured.{' '}
-                  <span style={{ color: 'var(--text2)' }}>
-                    Full map rendering coming soon.
-                  </span>
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                <circle cx="12" cy="9" r="2.5" />
+              </svg>
+              <div>
+                <p
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: 'var(--text)',
+                    marginBottom: 6,
+                  }}
+                >
+                  Territory Map
                 </p>
-              ) : (
                 <p style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.6 }}>
                   Add your Mapbox API key in{' '}
                   <span style={{ color: 'var(--text2)' }}>Settings → Integrations</span> to
-                  activate.
+                  activate the map.
+                </p>
+              </div>
+              {pins.length > 0 && (
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--text3)',
+                    borderTop: '1px solid var(--bg4)',
+                    paddingTop: 12,
+                    width: '100%',
+                    marginTop: 2,
+                  }}
+                >
+                  {pins.length} geocoded location{pins.length !== 1 ? 's' : ''} ready to display
                 </p>
               )}
             </div>
-
-            {pins.length > 0 && (
-              <p
-                style={{
-                  fontSize: 12,
-                  color: 'var(--text3)',
-                  borderTop: '1px solid var(--bg4)',
-                  paddingTop: 12,
-                  width: '100%',
-                  marginTop: 2,
-                }}
-              >
-                {pins.length} mapped{' '}
-                {pins.length === 1 ? 'opportunity' : 'opportunities'} ready to display
-              </p>
-            )}
           </div>
-        </div>
+        )}
 
         {/* Radius summary panel — overlays map (top-left) when active */}
         {activeMiles && (
@@ -574,7 +668,6 @@ export function TerritoryMapClient({
               zIndex: 10,
             }}
           >
-            {/* Panel header */}
             <div
               style={{
                 padding: '10px 14px',
@@ -588,12 +681,9 @@ export function TerritoryMapClient({
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                 Within {activeMiles} mi
               </span>
-              <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-                of {radiusCenter.label}
-              </span>
+              <span style={{ fontSize: 11, color: 'var(--text3)' }}>of {radiusCenter.label}</span>
             </div>
 
-            {/* Summary numbers */}
             <div style={{ padding: '12px 14px' }}>
               <p
                 style={{
@@ -607,12 +697,10 @@ export function TerritoryMapClient({
                 {radiusPins.length}
               </p>
               <p style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12 }}>
-                {radiusPins.length === 1 ? 'opportunity' : 'opportunities'} ·{' '}
-                {fmt$(radiusTotalValue)} pipeline
+                location{radiusPins.length !== 1 ? 's' : ''} · {fmt$(radiusTotalValue)} pipeline
               </p>
 
-              {/* Stage breakdown */}
-              {stageBreakdown.length > 0 ? (
+              {typeBreakdown.length > 0 ? (
                 <div
                   style={{
                     borderTop: '1px solid var(--bg4)',
@@ -622,33 +710,23 @@ export function TerritoryMapClient({
                     gap: 6,
                   }}
                 >
-                  {stageBreakdown.map(({ stage, count, value }) => {
-                    const meta = STAGE_META[stage]
-                    return (
-                      <div
-                        key={stage}
-                        style={{ display: 'flex', alignItems: 'center', gap: 7 }}
-                      >
-                        <span
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            background: meta?.color ?? '#94a3b8',
-                            flexShrink: 0,
-                          }}
-                        />
-                        <span
-                          style={{ fontSize: 12, color: 'var(--text2)', flex: 1 }}
-                        >
-                          {meta?.label ?? stage}
-                        </span>
-                        <span style={{ fontSize: 12, color: 'var(--text3)' }}>
-                          {count} · {fmt$(value)}
-                        </span>
-                      </div>
-                    )
-                  })}
+                  {typeBreakdown.map(({ label, count, value, color }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: color,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ fontSize: 12, color: 'var(--text2)', flex: 1 }}>{label}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+                        {count} · {fmt$(value)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p
@@ -659,14 +737,14 @@ export function TerritoryMapClient({
                     paddingTop: 4,
                   }}
                 >
-                  No opportunities in this radius
+                  No locations in this radius
                 </p>
               )}
             </div>
           </div>
         )}
 
-        {/* Stage legend — bottom-right corner, always visible */}
+        {/* Legend — switches between type and stage mode */}
         <div
           style={{
             position: 'absolute',
@@ -680,13 +758,28 @@ export function TerritoryMapClient({
             flexDirection: 'column',
             gap: 5,
             zIndex: 10,
+            maxHeight: 260,
+            overflowY: 'auto',
           }}
         >
-          <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
-            Stage
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: 'var(--text3)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              marginBottom: 2,
+            }}
+          >
+            {colorMode === 'stage' ? 'Stage' : 'Type'}
           </p>
-          {Object.entries(STAGE_META).map(([key, { label, color }]) => (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {(colorMode === 'stage' ? STAGE_COLOR_LEGEND : [
+            { label: 'Lead',        color: '#f97316' },
+            { label: 'Opportunity', color: '#3b82f6' },
+            { label: 'Won',         color: '#22c55e' },
+          ]).map(({ label, color }) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span
                 style={{
                   width: 8,
@@ -699,6 +792,22 @@ export function TerritoryMapClient({
               <span style={{ fontSize: 11, color: 'var(--text2)' }}>{label}</span>
             </div>
           ))}
+          {userLocation && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#3b82f6',
+                  border: '1.5px solid #fff',
+                  flexShrink: 0,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--text2)' }}>You</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

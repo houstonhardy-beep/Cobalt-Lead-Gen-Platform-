@@ -50,8 +50,10 @@ export default async function SettingsPage() {
     // Integrations (masked)
     mapboxTokenMasked:  tenant.mapboxToken  ? maskToken(tenant.mapboxToken)  : '',
     anthropicKeyMasked: tenant.anthropicKey ? maskToken(tenant.anthropicKey) : '',
+    apolloKeyMasked:    tenant.apolloKey    ? maskToken(tenant.apolloKey)    : '',
     mapboxTokenSet:     !!tenant.mapboxToken,
     anthropicKeySet:    !!tenant.anthropicKey,
+    apolloKeySet:       !!tenant.apolloKey,
 
     // Team
     users: users.map((u) => ({

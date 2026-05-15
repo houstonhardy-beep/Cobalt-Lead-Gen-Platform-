@@ -16,13 +16,14 @@ export async function PATCH(request: NextRequest) {
   })
   if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
-  const body = await request.json() as { mapboxToken?: string; anthropicKey?: string }
+  const body = await request.json() as { mapboxToken?: string; anthropicKey?: string; apolloKey?: string }
 
   await db.tenant.update({
     where: { id: tenant.id },
     data: {
       mapboxToken:  body.mapboxToken  !== undefined ? (body.mapboxToken.trim()  || null) : undefined,
       anthropicKey: body.anthropicKey !== undefined ? (body.anthropicKey.trim() || null) : undefined,
+      apolloKey:    body.apolloKey    !== undefined ? (body.apolloKey.trim()    || null) : undefined,
     },
   })
 

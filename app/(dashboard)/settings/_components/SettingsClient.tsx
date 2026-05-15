@@ -37,8 +37,10 @@ export interface SettingsClientProps {
   // Integrations
   mapboxTokenMasked:  string
   anthropicKeyMasked: string
+  apolloKeyMasked:    string
   mapboxTokenSet:     boolean
   anthropicKeySet:    boolean
+  apolloKeySet:       boolean
 
   // Team
   users: TeamUser[]
@@ -434,30 +436,67 @@ function BrandingTab({
 function IntegrationsTab({
   mapboxTokenMasked,
   anthropicKeyMasked,
+  apolloKeyMasked,
   mapboxTokenSet,
   anthropicKeySet,
+  apolloKeySet,
 }: {
   mapboxTokenMasked:  string
   anthropicKeyMasked: string
+  apolloKeyMasked:    string
   mapboxTokenSet:     boolean
   anthropicKeySet:    boolean
+  apolloKeySet:       boolean
 }) {
-  const [mapboxToken, setMapboxToken]     = useState('')
-  const [anthropicKey, setAnthropicKey]   = useState('')
-  const [saving, setSaving]               = useState(false)
-  const [saved, setSaved]                 = useState(false)
-  const [error, setError]                 = useState('')
+  const [mapboxToken, setMapboxToken]   = useState('')
+  const [anthropicKey, setAnthropicKey] = useState('')
+  const [apolloKey, setApolloKey]       = useState('')
+  const [saving, setSaving]             = useState(false)
+  const [saved, setSaved]               = useState(false)
+  const [error, setError]               = useState('')
+
+  // Apollo enrichment test
+  type ApolloResult = {
+    name: string | null
+    title: string | null
+    company: string | null
+    email: string | null
+    linkedinUrl: string | null
+  }
+  const [testLoading, setTestLoading]   = useState(false)
+  const [testResult, setTestResult]     = useState<ApolloResult | null>(null)
+  const [testError, setTestError]       = useState('')
+
+  async function handleTest() {
+    setTestLoading(true)
+    setTestResult(null)
+    setTestError('')
+    try {
+      const res = await fetch('/api/apollo/test', { method: 'POST' })
+      const d = await res.json() as ApolloResult & { error?: string }
+      if (!res.ok) {
+        setTestError(d.error ?? `Test failed (${res.status})`)
+      } else {
+        setTestResult(d)
+      }
+    } catch (e) {
+      setTestError(e instanceof Error ? e.message : 'Network error')
+    } finally {
+      setTestLoading(false)
+    }
+  }
 
   async function handleSave() {
     setSaving(true)
     setSaved(false)
     setError('')
     const body: Record<string, string> = {}
-    if (mapboxToken.trim())  body.mapboxToken  = mapboxToken.trim()
-    if (anthropicKey.trim()) body.anthropicKey = anthropicKey.trim()
+    if (mapboxToken.trim())   body.mapboxToken  = mapboxToken.trim()
+    if (anthropicKey.trim())  body.anthropicKey = anthropicKey.trim()
+    if (apolloKey.trim())     body.apolloKey    = apolloKey.trim()
 
     if (Object.keys(body).length === 0) {
-      setError('Enter at least one token to save.')
+      setError('Enter at least one key to save.')
       setSaving(false)
       return
     }
@@ -475,6 +514,7 @@ function IntegrationsTab({
         setSaved(true)
         setMapboxToken('')
         setAnthropicKey('')
+        setApolloKey('')
         setTimeout(() => setSaved(false), 2500)
       }
     } catch (e) {
@@ -531,6 +571,106 @@ function IntegrationsTab({
               placeholder={anthropicKeySet ? 'Enter new key to replace…' : 'sk-ant-…'}
             />
           </div>
+
+          <div style={{ height: 1, background: 'var(--bg4)' }} />
+
+          {/* Apollo */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>Apollo.io</p>
+                <p style={{ fontSize: 12, color: 'var(--text3)' }}>Contact enrichment and prospect data.</p>
+              </div>
+              <StatusBadge active={apolloKeySet} />
+            </div>
+            {apolloKeySet && (
+              <p style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6, fontFamily: 'monospace' }}>
+                Current: {apolloKeyMasked}
+              </p>
+            )}
+            <TextInput
+              value={apolloKey}
+              onChange={setApolloKey}
+              placeholder={apolloKeySet ? 'Enter new key to replace…' : 'api-key-…'}
+            />
+
+            {/* Test Enrichment — only when key is configured */}
+            {apolloKeySet && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={handleTest}
+                  disabled={testLoading}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    borderRadius: 6,
+                    border: '1px solid var(--bg4)',
+                    background: 'var(--bg3)',
+                    color: 'var(--text2)',
+                    cursor: testLoading ? 'not-allowed' : 'pointer',
+                    opacity: testLoading ? 0.6 : 1,
+                  }}
+                >
+                  {testLoading ? 'Testing…' : 'Test Enrichment'}
+                </button>
+
+                {testError && (
+                  <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{testError}</p>
+                )}
+
+                {testResult && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '12px 14px',
+                      background: 'var(--bg3)',
+                      border: '1px solid var(--bg4)',
+                      borderRadius: 8,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                    }}
+                  >
+                    <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                      Enrichment Result
+                    </p>
+                    {testResult.name && (
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                        {testResult.name}
+                      </p>
+                    )}
+                    {testResult.title && (
+                      <p style={{ fontSize: 12, color: 'var(--text2)' }}>{testResult.title}</p>
+                    )}
+                    {testResult.company && (
+                      <p style={{ fontSize: 12, color: 'var(--text3)' }}>{testResult.company}</p>
+                    )}
+                    {testResult.email && (
+                      <p style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>
+                        <span style={{ color: 'var(--text3)' }}>Email: </span>
+                        {testResult.email}
+                      </p>
+                    )}
+                    {testResult.linkedinUrl && (
+                      <p style={{ fontSize: 12, marginTop: 2 }}>
+                        <span style={{ color: 'var(--text3)' }}>LinkedIn: </span>
+                        <a
+                          href={testResult.linkedinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: 'var(--cobalt2)', textDecoration: 'none' }}
+                        >
+                          {testResult.linkedinUrl.replace(/^https?:\/\/(www\.)?/, '')}
+                        </a>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {error && <p style={{ fontSize: 13, color: '#f87171', marginTop: 12 }}>{error}</p>}
@@ -541,7 +681,6 @@ function IntegrationsTab({
 
       <SectionCard title="Coming Soon">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <ComingSoonCard name="Apollo.io" description="Contact enrichment and prospect data." />
           <ComingSoonCard name="Clearbit" description="Company intelligence and firmographic data." />
           <ComingSoonCard name="SAM.gov" description="Federal procurement and contract opportunity feed." />
           <ComingSoonCard name="SendGrid" description="Transactional email delivery for outreach." />
@@ -1026,8 +1165,10 @@ export function SettingsClient(props: SettingsClientProps) {
         <IntegrationsTab
           mapboxTokenMasked={props.mapboxTokenMasked}
           anthropicKeyMasked={props.anthropicKeyMasked}
+          apolloKeyMasked={props.apolloKeyMasked}
           mapboxTokenSet={props.mapboxTokenSet}
           anthropicKeySet={props.anthropicKeySet}
+          apolloKeySet={props.apolloKeySet}
         />
       )}
       {tab === 'team' && (

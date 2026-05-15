@@ -214,6 +214,7 @@ model Tenant {
   // Integrations
   mapboxToken   String?
   anthropicKey  String?
+  apolloKey     String?
 
   // Branding
   accentColor   String?
