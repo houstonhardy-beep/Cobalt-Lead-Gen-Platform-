@@ -355,6 +355,16 @@ model Lead {
   nextFollowUp DateTime?
   notes        String?       // freeform rep notes on the lead overall
 
+  // Apollo enrichment
+  employeeCount       Int?
+  estimatedRevenue    String?
+  industry            String?
+  website             String?
+  foundedYear         Int?
+  companyLinkedinUrl  String?
+  companyPhone        String?
+  technologies        String[]
+
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -417,6 +427,7 @@ model Contact {
   title         String?
   phone         String?
   email         String?
+  linkedinUrl   String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

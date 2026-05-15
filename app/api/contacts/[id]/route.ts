@@ -36,7 +36,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       ...(body.phone !== undefined ? { phone: body.phone?.trim() || null } : {}),
       ...(body.email !== undefined ? { email: body.email?.trim() || null } : {}),
     },
-    select: { id: true, name: true, title: true, phone: true, email: true },
+    select: { id: true, name: true, title: true, phone: true, email: true, linkedinUrl: true },
   })
 
   return NextResponse.json(updated)

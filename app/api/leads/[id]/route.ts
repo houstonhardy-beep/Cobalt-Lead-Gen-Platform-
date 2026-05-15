@@ -35,6 +35,8 @@ export async function GET(
       phone: true, email: true, heat: true, leadSource: true,
       value: true, city: true, state: true, notes: true,
       stage: true, createdAt: true,
+      employeeCount: true, estimatedRevenue: true, industry: true, website: true,
+      foundedYear: true, companyLinkedinUrl: true, companyPhone: true, technologies: true,
       assignedTo: { select: { id: true, name: true } },
       logs: {
         select: {

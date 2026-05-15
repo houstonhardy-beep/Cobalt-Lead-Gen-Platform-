@@ -467,6 +467,23 @@ function IntegrationsTab({
   const [testResult, setTestResult]     = useState<ApolloResult | null>(null)
   const [testError, setTestError]       = useState('')
 
+  // Backfill enrichment
+  type BackfillResult = { enriched: number; skipped: number; failed: number }
+  const [backfillLoading, setBackfillLoading] = useState(false)
+  const [backfillResult,  setBackfillResult]  = useState<BackfillResult | null>(null)
+  const [backfillError,   setBackfillError]   = useState('')
+
+  async function handleBackfill() {
+    setBackfillLoading(true); setBackfillResult(null); setBackfillError('')
+    try {
+      const res = await fetch('/api/admin/backfill-enrichment', { method: 'POST' })
+      const d = await res.json() as BackfillResult & { error?: string }
+      if (!res.ok) { setBackfillError(d.error ?? `Failed (${res.status})`); return }
+      setBackfillResult(d)
+    } catch { setBackfillError('Network error') }
+    finally { setBackfillLoading(false) }
+  }
+
   async function handleTest() {
     setTestLoading(true)
     setTestResult(null)
@@ -668,6 +685,32 @@ function IntegrationsTab({
                     )}
                   </div>
                 )}
+
+                {/* Backfill enrichment */}
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--bg4)' }}>
+                  <button
+                    type="button"
+                    onClick={handleBackfill}
+                    disabled={backfillLoading}
+                    style={{
+                      padding: '6px 14px', fontSize: 12, fontWeight: 500, borderRadius: 6,
+                      border: '1px solid var(--bg4)', background: 'var(--bg3)', color: 'var(--text2)',
+                      cursor: backfillLoading ? 'not-allowed' : 'pointer',
+                      opacity: backfillLoading ? 0.6 : 1,
+                    }}
+                  >
+                    {backfillLoading ? 'Running…' : 'Backfill Enrichment'}
+                  </button>
+                  <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                    Enriches existing leads that have no Apollo data yet.
+                  </p>
+                  {backfillError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 6 }}>{backfillError}</p>}
+                  {backfillResult && (
+                    <p style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>
+                      Done — {backfillResult.enriched} enriched, {backfillResult.skipped} skipped, {backfillResult.failed} failed.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>

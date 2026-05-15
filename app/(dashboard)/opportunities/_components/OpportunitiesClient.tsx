@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { OppDrawer } from '../../pipeline/_components/OppDrawer'
 import { LeadDrawer } from './LeadDrawer'
 import type { PipelineRow } from '../../pipeline/_components/PipelineClient'
@@ -979,6 +979,8 @@ function NewLeadDrawer({ open, reps, currentUserId, onClose, onSubmit }: {
     setCity(''); setStateVal(''); setEstimatedRevenue(''); setNotes(''); setError('')
   }
 
+  useEffect(() => { if (open) reset() }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function handleClose() { reset(); onClose() }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -1234,6 +1236,13 @@ function SlideOver({ open, onClose, title, children }: {
   title:    string
   children: React.ReactNode
 }) {
+  useEffect(() => {
+    if (!open) return
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
   return (
     <>
       <div

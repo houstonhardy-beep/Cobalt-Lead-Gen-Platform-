@@ -34,8 +34,9 @@ interface DeepBrief {
 }
 
 interface ResearchResult {
-  company: string
-  brief:   CompanyBrief
+  company:       string
+  brief:         CompanyBrief
+  apolloVerified?: boolean
 }
 
 interface DeepResult {
@@ -340,7 +341,7 @@ function CompanyResearchSection() {
 // ── Stage 1 Brief Card ────────────────────────────────────────────────────────
 
 function BriefCard({ result }: { result: ResearchResult }) {
-  const { company, brief } = result
+  const { company, brief, apolloVerified } = result
 
   if (brief.raw) {
     return (
@@ -351,9 +352,9 @@ function BriefCard({ result }: { result: ResearchResult }) {
     )
   }
 
-  const sections: { label: string; key: keyof CompanyBrief; accent?: string }[] = [
+  const sections: { label: string; key: keyof CompanyBrief; accent?: string; verified?: boolean }[] = [
     { label: 'What They Do',            key: 'whatTheyDo' },
-    { label: 'Size & Locations',        key: 'sizeAndLocations' },
+    { label: 'Size & Locations',        key: 'sizeAndLocations',      verified: apolloVerified },
     { label: 'Physical Security Needs', key: 'physicalSecurityNeeds', accent: 'var(--accent)' },
     { label: 'Recent News & Signals',   key: 'recentSignals' },
     { label: 'Suggested Opener',        key: 'suggestedOpener',       accent: '#34d399' },
@@ -367,7 +368,7 @@ function BriefCard({ result }: { result: ResearchResult }) {
         <span className="text-xs ml-auto" style={{ color: 'var(--text3)' }}>Stage 1 — Overview</span>
       </div>
       <div>
-        {sections.map(({ label, key, accent }, i) => (
+        {sections.map(({ label, key, accent, verified }, i) => (
           <div
             key={key}
             style={{
@@ -375,9 +376,21 @@ function BriefCard({ result }: { result: ResearchResult }) {
               borderBottom: i < sections.length - 1 ? '1px solid var(--bg4)' : 'none',
             }}
           >
-            <p className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: accent ?? 'var(--text3)' }}>
-              {label}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: accent ?? 'var(--text3)', margin: 0 }}>
+                {label}
+              </p>
+              {verified && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+                  padding: '1px 6px', borderRadius: 3,
+                  background: 'rgba(16,185,129,0.12)', color: '#10b981',
+                  border: '1px solid rgba(16,185,129,0.25)',
+                }}>
+                  Verified by Apollo
+                </span>
+              )}
+            </div>
             <p className="text-sm leading-relaxed" style={{ color: 'var(--text2)' }}>
               {brief[key] as string}
             </p>

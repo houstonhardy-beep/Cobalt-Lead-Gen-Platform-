@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation'
 import type { LeadRow } from './OpportunitiesClient'
 
 interface Contact {
-  id:    string
-  name:  string
-  title: string | null
-  phone: string | null
-  email: string | null
+  id:          string
+  name:        string
+  title:       string | null
+  phone:       string | null
+  email:       string | null
+  linkedinUrl: string | null
 }
 
 interface LeadDetail {
@@ -24,9 +25,17 @@ interface LeadDetail {
   value:        number | null
   city:         string | null
   state:        string | null
-  notes:        string | null
-  stage:        string
-  createdAt:    string
+  notes:            string | null
+  stage:            string
+  createdAt:        string
+  employeeCount:      number | null
+  estimatedRevenue:   string | null
+  industry:           string | null
+  website:            string | null
+  foundedYear:        number | null
+  companyLinkedinUrl: string | null
+  companyPhone:       string | null
+  technologies:       string[]
   assignedTo:   { id: string; name: string | null } | null
   logs: {
     id: string; date: string; action: string
@@ -466,6 +475,57 @@ export function LeadDrawer({ leadId, reps, onClose, onLeadUpdate, onConvert }: {
                             </p>
                           </div>
                         )}
+                        {(detail.industry || detail.employeeCount || detail.estimatedRevenue || detail.website ||
+                          detail.foundedYear || detail.companyLinkedinUrl || detail.companyPhone || detail.technologies?.length) && (
+                          <div style={{ gridColumn: '1/-1', marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--bg4)' }}>
+                            <p style={{ ...labelStyle, marginBottom: 8 }}>Company Intel</p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 20px' }}>
+                              {detail.industry         && <DetailRow label="Industry"  value={detail.industry} />}
+                              {detail.employeeCount    && <DetailRow label="Employees" value={detail.employeeCount.toLocaleString()} />}
+                              {detail.estimatedRevenue && <DetailRow label="Revenue"   value={detail.estimatedRevenue} />}
+                              {detail.foundedYear      && <DetailRow label="Founded"   value={String(detail.foundedYear)} />}
+                              {detail.website          && (
+                                <DetailRow label="Website" value={
+                                  <a href={detail.website.startsWith('http') ? detail.website : `https://${detail.website}`}
+                                    target="_blank" rel="noopener noreferrer"
+                                    style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: 13 }}>
+                                    {detail.website.replace(/^https?:\/\//, '')}
+                                  </a>
+                                } />
+                              )}
+                              {detail.companyPhone && (
+                                <DetailRow label="Phone" value={
+                                  <a href={`tel:${detail.companyPhone}`}
+                                    style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: 13 }}>
+                                    {detail.companyPhone}
+                                  </a>
+                                } />
+                              )}
+                              {detail.companyLinkedinUrl && (
+                                <DetailRow label="LinkedIn" value={
+                                  <a href={detail.companyLinkedinUrl} target="_blank" rel="noopener noreferrer"
+                                    style={{ color: '#0a66c2', textDecoration: 'none', fontSize: 13 }}>
+                                    View Profile
+                                  </a>
+                                } />
+                              )}
+                            </div>
+                            {detail.technologies && detail.technologies.length > 0 && (
+                              <div style={{ marginTop: 10 }}>
+                                <p style={{ ...labelStyle, margin: '0 0 6px' }}>Technologies</p>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                  {[...new Set(detail.technologies)].map((t, index) => (
+                                    <span key={`${t}-${index}`} style={{
+                                      fontSize: 11, padding: '2px 8px', borderRadius: 4,
+                                      background: 'var(--bg4)', color: 'var(--text3)',
+                                      border: '1px solid var(--bg4)',
+                                    }}>{t}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </Section>
@@ -476,6 +536,9 @@ export function LeadDrawer({ leadId, reps, onClose, onLeadUpdate, onConvert }: {
                     entityId={detail.id}
                     contacts={contacts}
                     setContacts={setContacts}
+                    apolloEnabled={!!detail.website}
+                    companyName={detail.company}
+                    companyDomain={detail.website ? detail.website.replace(/^https?:\/\//, '').split('/')[0] : undefined}
                   />
 
                   {/* ── Linked Signal ── */}
@@ -621,13 +684,30 @@ export function LeadDrawer({ leadId, reps, onClose, onLeadUpdate, onConvert }: {
 
 // ── Contacts ──────────────────────────────────────────────────────────────────
 
+interface ApolloContact {
+  id:          string
+  name:        string | null
+  firstName:   string | null
+  title:       string | null
+  email:       string | null
+  phone:       string | null
+  linkedinUrl: string | null
+  hasEmail:    boolean
+  hasPhone:    boolean
+  revealed?:   boolean
+}
+
 function ContactsSection({
   linkField, entityId, contacts, setContacts,
+  apolloEnabled, companyName, companyDomain,
 }: {
-  linkField:   'leadId' | 'opportunityId'
-  entityId:    string
-  contacts:    Contact[]
-  setContacts: React.Dispatch<React.SetStateAction<Contact[]>>
+  linkField:      'leadId' | 'opportunityId'
+  entityId:       string
+  contacts:       Contact[]
+  setContacts:    React.Dispatch<React.SetStateAction<Contact[]>>
+  apolloEnabled?: boolean
+  companyName?:   string
+  companyDomain?: string
 }) {
   const [showAdd,     setShowAdd]     = useState(false)
   const [editingId,   setEditingId]   = useState<string | null>(null)
@@ -639,44 +719,118 @@ function ContactsSection({
   const [fsaving,     setFsaving]     = useState(false)
   const [formError,   setFormError]   = useState('')
 
+  // Find Contacts modal
+  const [showFind,     setShowFind]     = useState(false)
+  const [findLoading,  setFindLoading]  = useState(false)
+  const [findError,    setFindError]    = useState('')
+  const [candidates,   setCandidates]   = useState<ApolloContact[]>([])
+  const [revealing,    setRevealing]    = useState<Record<string, boolean>>({})
+  const [revealErrors, setRevealErrors] = useState<Record<string, string>>({})
+  const [adding,       setAdding]       = useState<Record<string, boolean>>({})
+  const [added,        setAdded]        = useState<Record<string, boolean>>({})
+
+  // match by first name since last names are obfuscated before reveal
+  const addedFirstNames = new Set(
+    contacts.map((c) => c.name?.split(' ')[0]?.toLowerCase()).filter(Boolean)
+  )
+
+  async function openFind() {
+    setShowFind(true)
+    if (candidates.length) return
+    setFindLoading(true)
+    setFindError('')
+    try {
+      const res = await fetch('/api/apollo/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company: companyName, domain: companyDomain }),
+      })
+      const data = await res.json() as { people?: ApolloContact[]; error?: string }
+      if (!res.ok) { setFindError(data.error ?? 'Search failed'); return }
+      setCandidates((data.people ?? []).map((p) => ({ ...p, revealed: p.revealed ?? false })))
+    } catch {
+      setFindError('Network error')
+    } finally { setFindLoading(false) }
+  }
+
+  async function handleReveal(p: ApolloContact) {
+    if (revealing[p.id]) return
+    setRevealing((s) => ({ ...s, [p.id]: true }))
+    setRevealErrors((s) => ({ ...s, [p.id]: '' }))
+    try {
+      const res = await fetch('/api/apollo/reveal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apolloId: p.id, companyName }),
+      })
+      const data = await res.json() as { name?: string | null; email?: string | null; phone?: string | null; title?: string | null; linkedinUrl?: string | null; error?: string }
+      if (!res.ok) {
+        setRevealErrors((s) => ({ ...s, [p.id]: data.error ?? 'Reveal failed' }))
+        return
+      }
+      setCandidates((prev) => prev.map((c) =>
+        c.id === p.id
+          ? { ...c, ...data, revealed: true }
+          : c
+      ))
+    } catch {
+      setRevealErrors((s) => ({ ...s, [p.id]: 'Network error' }))
+    } finally {
+      setRevealing((s) => ({ ...s, [p.id]: false }))
+    }
+  }
+
+  async function addCandidate(p: ApolloContact) {
+    if (adding[p.id] || added[p.id]) return
+    setAdding((s) => ({ ...s, [p.id]: true }))
+    try {
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          [linkField]: entityId,
+          name:  p.name  || 'Unknown',
+          title: p.title || null,
+          phone: p.phone || null,
+          email: p.email || null,
+        }),
+      })
+      if (res.ok) {
+        const c = await res.json() as Contact
+        setContacts((prev) => [...prev, c])
+        setAdded((s) => ({ ...s, [p.id]: true }))
+      }
+    } finally { setAdding((s) => ({ ...s, [p.id]: false })) }
+  }
+
   function resetForm() { setFname(''); setFtitle(''); setFphone(''); setFemail('') }
-
   function beginAdd() { setEditingId(null); resetForm(); setShowAdd(true) }
-
   function beginEdit(c: Contact) {
     setShowAdd(false)
     setFname(c.name); setFtitle(c.title ?? ''); setFphone(c.phone ?? ''); setFemail(c.email ?? '')
     setEditingId(c.id)
   }
-
   function cancelForm() { setShowAdd(false); setEditingId(null); resetForm(); setFormError('') }
 
   async function handleAdd() {
     if (!fname.trim() || fsaving) return
-    setFsaving(true)
-    setFormError('')
-    const payload = { [linkField]: entityId, name: fname.trim(), title: ftitle.trim() || null, phone: fphone.trim() || null, email: femail.trim() || null }
-    console.log('[contacts] POST payload:', payload)
+    setFsaving(true); setFormError('')
     try {
       const res = await fetch('/api/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ [linkField]: entityId, name: fname.trim(), title: ftitle.trim() || null, phone: fphone.trim() || null, email: femail.trim() || null }),
       })
       if (res.ok) {
         const newContact = await res.json() as Contact
         setContacts((p) => [...p, newContact])
         setShowAdd(false); resetForm()
       } else {
-        const data = await res.json().catch(() => ({})) as { error?: string }
-        const msg = data.error ?? `Save failed (${res.status})`
-        console.error('[contacts] POST failed:', res.status, data)
-        setFormError(msg)
+        const d = await res.json().catch(() => ({})) as { error?: string }
+        setFormError(d.error ?? `Save failed (${res.status})`)
       }
-    } catch (e) {
-      console.error('[contacts] POST error:', e)
-      setFormError('Network error — please try again')
-    } finally { setFsaving(false) }
+    } catch { setFormError('Network error — please try again') }
+    finally { setFsaving(false) }
   }
 
   async function handleEdit() {
@@ -689,8 +843,8 @@ function ContactsSection({
         body: JSON.stringify({ name: fname.trim(), title: ftitle.trim() || null, phone: fphone.trim() || null, email: femail.trim() || null }),
       })
       if (res.ok) {
-        const u = await res.json() as Contact
-        setContacts((p) => p.map((c) => c.id === editingId ? u : c))
+        const updated = await res.json() as Contact
+        setContacts((p) => p.map((c) => c.id === editingId ? updated : c))
         setEditingId(null); resetForm()
       }
     } finally { setFsaving(false) }
@@ -698,10 +852,7 @@ function ContactsSection({
 
   async function handleDelete(id: string) {
     const res = await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
-    if (res.ok || res.status === 204) {
-      setContacts((p) => p.filter((c) => c.id !== id))
-      setConfirmDel(null)
-    }
+    if (res.ok || res.status === 204) { setContacts((p) => p.filter((c) => c.id !== id)); setConfirmDel(null) }
   }
 
   function contactForm(onSave: () => void, label: string) {
@@ -721,15 +872,10 @@ function ContactsSection({
             <input type="email" value={femail} onChange={(e) => setFemail(e.target.value)} style={inputStyle} />
           </Field>
         </div>
-        {formError && (
-          <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{formError}</p>
-        )}
+        {formError && <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{formError}</p>}
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={onSave}
-            disabled={!fname.trim() || fsaving}
-            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6, border: 'none', background: fname.trim() ? 'var(--accent)' : 'var(--bg4)', color: fname.trim() ? '#fff' : 'var(--text3)', cursor: fname.trim() ? 'pointer' : 'not-allowed' }}
-          >
+          <button onClick={onSave} disabled={!fname.trim() || fsaving}
+            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6, border: 'none', background: fname.trim() ? 'var(--accent)' : 'var(--bg4)', color: fname.trim() ? '#fff' : 'var(--text3)', cursor: fname.trim() ? 'pointer' : 'not-allowed' }}>
             {fsaving ? 'Saving…' : label}
           </button>
           <button onClick={cancelForm} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--bg4)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer' }}>
@@ -740,57 +886,189 @@ function ContactsSection({
     )
   }
 
+  const showFindBtn = apolloEnabled && contacts.length < 3 && !showAdd && !editingId
+
   return (
-    <Section
-      title="Contacts"
-      action={!showAdd && !editingId ? (
-        <button onClick={beginAdd} style={ghostBtn}>+ Add</button>
-      ) : undefined}
-    >
-      {contacts.length === 0 && !showAdd && (
-        <p style={{ fontSize: 12, color: 'var(--text3)', margin: 0 }}>No contacts yet.</p>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {contacts.map((c) => (
-          <div key={c.id}>
-            {editingId === c.id ? contactForm(handleEdit, 'Save') : (
-              <div style={{ padding: '10px 12px', borderRadius: 7, background: 'var(--bg3)', border: '1px solid var(--bg4)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '0 0 1px' }}>{c.name}</p>
-                    {c.title && <p style={{ fontSize: 12, color: 'var(--text3)', margin: '0 0 6px' }}>{c.title}</p>}
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: c.title ? 0 : 6 }}>
-                      {c.phone && (
-                        <a href={`tel:${c.phone}`} style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none', padding: '2px 8px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
-                          Call {c.phone}
-                        </a>
-                      )}
-                      {c.email && (
-                        <a href={`mailto:${c.email}`} style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none', padding: '2px 8px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
-                          Email {c.email}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                  {confirmDel === c.id ? (
-                    <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                      <button onClick={() => handleDelete(c.id)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer' }}>Delete</button>
-                      <button onClick={() => setConfirmDel(null)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--bg4)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer' }}>Cancel</button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => beginEdit(c)} style={{ ...ghostBtn, fontSize: 11 }}>Edit</button>
-                      <button onClick={() => setConfirmDel(c.id)} style={{ padding: 0, background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
-                    </div>
-                  )}
-                </div>
-              </div>
+    <>
+      <Section
+        title="Contacts"
+        action={!showAdd && !editingId ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {showFindBtn && (
+              <button onClick={openFind} style={{ ...ghostBtn, fontSize: 12 }}>Find Contacts</button>
             )}
+            <button onClick={beginAdd} style={ghostBtn}>+ Add</button>
           </div>
-        ))}
-        {showAdd && contactForm(handleAdd, 'Add Contact')}
-      </div>
-    </Section>
+        ) : undefined}
+      >
+        {contacts.length === 0 && !showAdd && (
+          <p style={{ fontSize: 12, color: 'var(--text3)', margin: 0 }}>No contacts yet.</p>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {contacts.map((c) => (
+            <div key={c.id}>
+              {editingId === c.id ? contactForm(handleEdit, 'Save') : (
+                <div style={{ padding: '10px 12px', borderRadius: 7, background: 'var(--bg3)', border: '1px solid var(--bg4)' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '0 0 1px' }}>{c.name}</p>
+                      {c.title && <p style={{ fontSize: 12, color: 'var(--text3)', margin: '0 0 6px' }}>{c.title}</p>}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: c.title ? 0 : 6 }}>
+                        {c.phone && (
+                          <a href={`tel:${c.phone}`} style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none', padding: '2px 8px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                            Call {c.phone}
+                          </a>
+                        )}
+                        {c.email && (
+                          <a href={`mailto:${c.email}`} style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none', padding: '2px 8px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                            Email {c.email}
+                          </a>
+                        )}
+                        {c.linkedinUrl && (
+                          <a href={c.linkedinUrl} target="_blank" rel="noopener noreferrer"
+                            style={{ fontSize: 11, fontWeight: 500, color: '#0a66c2', textDecoration: 'none', padding: '2px 8px', borderRadius: 4, background: 'rgba(10,102,194,0.08)', border: '1px solid rgba(10,102,194,0.2)' }}>
+                            LinkedIn
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    {confirmDel === c.id ? (
+                      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                        <button onClick={() => handleDelete(c.id)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer' }}>Delete</button>
+                        <button onClick={() => setConfirmDel(null)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--bg4)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer' }}>Cancel</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => beginEdit(c)} style={{ ...ghostBtn, fontSize: 11 }}>Edit</button>
+                        <button onClick={() => setConfirmDel(c.id)} style={{ padding: 0, background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          {showAdd && contactForm(handleAdd, 'Add Contact')}
+        </div>
+      </Section>
+
+      {/* ── Find Contacts modal ── */}
+      {showFind && (
+        <>
+          <div onClick={() => setShowFind(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 60 }} />
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+            width: 480, maxHeight: '80vh', overflowY: 'auto',
+            background: 'var(--bg2)', border: '1px solid var(--bg4)', borderRadius: 10,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.4)', zIndex: 61,
+            display: 'flex', flexDirection: 'column',
+          }}>
+            {/* header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bg4)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Find Contacts</p>
+                <p style={{ fontSize: 12, color: 'var(--text3)', margin: '2px 0 0' }}>{companyName} · via Apollo</p>
+              </div>
+              <button onClick={() => setShowFind(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '2px 6px' }}>×</button>
+            </div>
+
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* credit notice */}
+              {!findLoading && !findError && candidates.length > 0 && (
+                <p style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--bg3)', border: '1px solid var(--bg4)', borderRadius: 6, padding: '6px 10px', margin: 0 }}>
+                  Each reveal uses 1 Apollo credit (75/mo on your current plan)
+                </p>
+              )}
+
+              {findLoading && <p style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '20px 0' }}>Searching Apollo…</p>}
+              {findError   && <p style={{ fontSize: 13, color: '#f87171', padding: '10px 0', lineHeight: 1.5 }}>{findError}</p>}
+              {!findLoading && !findError && candidates.length === 0 && (
+                <p style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '20px 0' }}>No contacts found.</p>
+              )}
+
+              {candidates.map((p) => {
+                const alreadyAdded = added[p.id] || addedFirstNames.has(p.firstName?.toLowerCase() ?? '')
+                const isRevealing  = revealing[p.id]
+                const revealErr    = revealErrors[p.id]
+
+                return (
+                  <div key={p.id} style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--bg3)', border: '1px solid var(--bg4)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      {/* contact info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '0 0 1px' }}>{p.name ?? '—'}</p>
+                        {p.title && <p style={{ fontSize: 12, color: 'var(--text3)', margin: '0 0 6px' }}>{p.title}</p>}
+
+                        {/* availability indicators (pre-reveal) or actual values (post-reveal) */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px' }}>
+                          {p.revealed ? (
+                            <>
+                              {p.email      && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{p.email}</span>}
+                              {p.phone      && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{p.phone}</span>}
+                              {p.linkedinUrl && (
+                                <a href={p.linkedinUrl} target="_blank" rel="noopener noreferrer"
+                                  style={{ fontSize: 11, color: '#0a66c2', textDecoration: 'none' }}>LinkedIn</a>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {p.hasEmail && <span style={{ fontSize: 11, color: 'var(--text3)' }}>✉ email available</span>}
+                              {p.hasPhone && <span style={{ fontSize: 11, color: 'var(--text3)' }}>📞 phone available</span>}
+                              {p.linkedinUrl && (
+                                <a href={p.linkedinUrl} target="_blank" rel="noopener noreferrer"
+                                  style={{ fontSize: 11, color: '#0a66c2', textDecoration: 'none' }}>LinkedIn</a>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* action button */}
+                      {alreadyAdded ? (
+                        <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 6, background: 'var(--bg4)', color: 'var(--text3)' }}>
+                          ✓ Added
+                        </span>
+                      ) : p.revealed ? (
+                        <button
+                          onClick={() => addCandidate(p)}
+                          disabled={adding[p.id]}
+                          style={{
+                            flexShrink: 0, fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 6,
+                            border: 'none', cursor: 'pointer',
+                            background: 'var(--accent)', color: '#fff',
+                            opacity: adding[p.id] ? 0.6 : 1,
+                          }}
+                        >
+                          {adding[p.id] ? 'Adding…' : 'Add'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleReveal(p)}
+                          disabled={isRevealing}
+                          style={{
+                            flexShrink: 0, fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 6,
+                            border: '1px solid var(--bg4)', cursor: isRevealing ? 'default' : 'pointer',
+                            background: 'var(--bg2)', color: 'var(--text)',
+                            opacity: isRevealing ? 0.6 : 1,
+                          }}
+                        >
+                          {isRevealing ? 'Revealing…' : 'Reveal'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* per-card reveal error */}
+                    {revealErr && (
+                      <p style={{ fontSize: 11, color: '#f87171', margin: '6px 0 0' }}>{revealErr}</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </>
   )
 }
 

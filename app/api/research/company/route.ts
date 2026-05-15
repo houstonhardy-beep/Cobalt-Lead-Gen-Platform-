@@ -3,8 +3,9 @@ import Anthropic from '@anthropic-ai/sdk'
 import { requireAuthApi } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getTenantSlug } from '@/lib/tenant'
+import { apolloEnrichOrg, type ApolloOrgData } from '@/lib/apollo'
 
-const SYSTEM_PROMPT = `You are a sales intelligence assistant for a physical security integrator. When given a company name, return a structured brief in JSON format. Be specific and practical — this is for a sales rep preparing for an outreach call.
+const BASE_SYSTEM_PROMPT = `You are a sales intelligence assistant for a physical security integrator. When given a company name, return a structured brief in JSON format. Be specific and practical — this is for a sales rep preparing for an outreach call.
 
 Return valid JSON with exactly these keys:
 - whatTheyDo: string — 2-3 sentences on what the company does, their industry, and core business
@@ -15,14 +16,26 @@ Return valid JSON with exactly these keys:
 
 No markdown in the values. Plain prose only.`
 
-async function resolveAnthropicClient(request: NextRequest): Promise<Anthropic> {
+function buildVerifiedFacts(org: ApolloOrgData): string {
+  const lines: string[] = []
+  if (org.employeeCount)    lines.push(`- Employee count: ${org.employeeCount.toLocaleString()}`)
+  if (org.estimatedRevenue) lines.push(`- Annual revenue: ${org.estimatedRevenue}`)
+  if (org.industry)         lines.push(`- Industry: ${org.industry}`)
+  if (org.city || org.state) {
+    const loc = [org.city, org.state].filter(Boolean).join(', ')
+    lines.push(`- Headquarters: ${loc}`)
+  }
+  if (org.website)          lines.push(`- Website: ${org.website}`)
+  return lines.join('\n')
+}
+
+async function resolveTenant(request: NextRequest) {
   const slug = getTenantSlug(request)
-  if (!slug) return new Anthropic()
-  const tenant = await db.tenant.findFirst({
+  if (!slug) return null
+  return db.tenant.findFirst({
     where: { slug, active: true },
-    select: { anthropicKey: true },
+    select: { anthropicKey: true, apolloKey: true },
   })
-  return new Anthropic({ apiKey: tenant?.anthropicKey ?? undefined })
 }
 
 export async function POST(request: NextRequest) {
@@ -33,7 +46,22 @@ export async function POST(request: NextRequest) {
   const company = body.company?.trim()
   if (!company) return NextResponse.json({ error: 'Company name is required' }, { status: 400 })
 
-  const client = await resolveAnthropicClient(request)
+  const tenant = await resolveTenant(request)
+
+  // Pre-enrich with Apollo if key is available
+  let apolloData: ApolloOrgData | null = null
+  if (tenant?.apolloKey) {
+    apolloData = await apolloEnrichOrg(tenant.apolloKey, company)
+  }
+
+  // Build system prompt — inject verified Apollo facts when available
+  let systemPrompt = BASE_SYSTEM_PROMPT
+  if (apolloData) {
+    const facts = buildVerifiedFacts(apolloData)
+    systemPrompt += `\n\nThe following firmographic data has been VERIFIED via Apollo.io — treat these as confirmed facts, not estimates. Use them directly in your sizeAndLocations field rather than guessing:\n${facts}`
+  }
+
+  const client = new Anthropic({ apiKey: tenant?.anthropicKey ?? undefined })
 
   let message
   try {
@@ -43,7 +71,7 @@ export async function POST(request: NextRequest) {
       system: [
         {
           type: 'text',
-          text: SYSTEM_PROMPT,
+          text: systemPrompt,
           cache_control: { type: 'ephemeral' },
         },
       ],
@@ -68,8 +96,8 @@ export async function POST(request: NextRequest) {
   try {
     const raw = textContent.text.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim()
     const brief = JSON.parse(raw)
-    return NextResponse.json({ company, brief })
+    return NextResponse.json({ company, brief, apolloVerified: apolloData != null })
   } catch {
-    return NextResponse.json({ company, brief: { raw: textContent.text } })
+    return NextResponse.json({ company, brief: { raw: textContent.text }, apolloVerified: false })
   }
 }
