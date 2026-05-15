@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { requireAuthApi } from '@/lib/auth'
-
-const client = new Anthropic()
+import { db } from '@/lib/db'
+import { getTenantSlug } from '@/lib/tenant'
 
 const SYSTEM_PROMPT = `You are a sales intelligence assistant for a physical security integrator. When given a company name, return a structured brief in JSON format. Be specific and practical — this is for a sales rep preparing for an outreach call.
 
@@ -15,6 +15,16 @@ Return valid JSON with exactly these keys:
 
 No markdown in the values. Plain prose only.`
 
+async function resolveAnthropicClient(request: NextRequest): Promise<Anthropic> {
+  const slug = getTenantSlug(request)
+  if (!slug) return new Anthropic()
+  const tenant = await db.tenant.findFirst({
+    where: { slug, active: true },
+    select: { anthropicKey: true },
+  })
+  return new Anthropic({ apiKey: tenant?.anthropicKey ?? undefined })
+}
+
 export async function POST(request: NextRequest) {
   const auth = await requireAuthApi()
   if (!auth.ok) return auth.response
@@ -22,6 +32,8 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as { company?: string }
   const company = body.company?.trim()
   if (!company) return NextResponse.json({ error: 'Company name is required' }, { status: 400 })
+
+  const client = await resolveAnthropicClient(request)
 
   let message
   try {

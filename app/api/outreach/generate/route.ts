@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { requireAuthApi } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { getTenantSlug } from '@/lib/tenant'
 
-const client = new Anthropic()
+async function resolveAnthropicClient(request: NextRequest): Promise<Anthropic> {
+  const slug = getTenantSlug(request)
+  if (!slug) return new Anthropic()
+  const tenant = await db.tenant.findFirst({
+    where: { slug, active: true },
+    select: { anthropicKey: true },
+  })
+  return new Anthropic({ apiKey: tenant?.anthropicKey ?? undefined })
+}
 
 const SYSTEM_PROMPT = `You are a senior sales development representative at a physical security integration company. Your company sells and installs IP cameras and video surveillance, electronic access control, intercoms, intrusion alarms, and integrated security platforms.
 
@@ -111,6 +121,8 @@ VALUE PROPOSITION
 CLOSE / NEXT STEP
 [suggested next step]`
   }
+
+  const client = await resolveAnthropicClient(request)
 
   let message
   try {

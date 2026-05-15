@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -298,7 +299,9 @@ function BrandingTab({
   initialAccentColor: string
   initialLogoUrl:     string
 }) {
-  const [accentColor, setAccentColor] = useState(initialAccentColor)
+  const router = useRouter()
+  // Always keep a valid hex so the color picker and preview are in sync from the start.
+  const [accentColor, setAccentColor] = useState(initialAccentColor || '#1a56ff')
   const [logoUrl, setLogoUrl]         = useState(initialLogoUrl)
   const [saving, setSaving]           = useState(false)
   const [saved, setSaved]             = useState(false)
@@ -319,6 +322,8 @@ function BrandingTab({
         setError(d.error ?? `Save failed (${res.status})`)
       } else {
         setSaved(true)
+        // Re-fetch server components so the layout picks up the new --accent CSS variable.
+        router.refresh()
         setTimeout(() => setSaved(false), 2500)
       }
     } catch (e) {
@@ -337,7 +342,7 @@ function BrandingTab({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
                 type="color"
-                value={accentColor || '#1A56FF'}
+                value={accentColor}
                 onChange={(e) => setAccentColor(e.target.value)}
                 style={{
                   width: 40,
@@ -374,7 +379,7 @@ function BrandingTab({
               style={{
                 height: 36,
                 borderRadius: 6,
-                background: accentColor || '#1A56FF',
+                background: accentColor,
                 border: '1px solid var(--bg4)',
                 display: 'flex',
                 alignItems: 'center',

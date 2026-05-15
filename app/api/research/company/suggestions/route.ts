@@ -5,8 +5,6 @@ import { db } from '@/lib/db'
 import { getTenantSlug } from '@/lib/tenant'
 import type { TenantConfig } from '@/lib/tenant/types'
 
-const client = new Anthropic()
-
 const SYSTEM_PROMPT = `You are a sales intelligence assistant for a physical security integrator. When given a company name and a target territory, suggest 1-3 similar companies the sales rep should also research as prospects.
 
 Suggestions must be headquartered in or have significant operations in the target territory (the specified state and its neighboring states). Geography is a hard filter, not a tiebreaker — do not suggest companies with no presence in that region.
@@ -27,22 +25,24 @@ interface Suggestion {
   reason:      string
 }
 
-async function resolveTerritoryState(request: NextRequest): Promise<string | null> {
+async function resolveTenantData(request: NextRequest): Promise<{
+  territoryState: string | null
+  anthropicKey:   string | null
+}> {
   const slug = getTenantSlug(request)
-  if (!slug) return null
+  if (!slug) return { territoryState: null, anthropicKey: null }
 
   const tenant = await db.tenant.findFirst({
     where: { slug, active: true },
-    select: { config: true },
+    select: { config: true, anthropicKey: true },
   })
-  if (!tenant) return null
+  if (!tenant) return { territoryState: null, anthropicKey: null }
 
   const config = tenant.config as unknown as TenantConfig
-  const geo = config?.geography
+  const geo    = config?.geography
+  const state  = geo?.primaryStates?.[0] ?? geo?.hq?.state ?? null
 
-  // Prefer primaryStates, fall back to HQ state
-  const state = geo?.primaryStates?.[0] ?? geo?.hq?.state ?? null
-  return state ?? null
+  return { territoryState: state ?? null, anthropicKey: tenant.anthropicKey }
 }
 
 export async function POST(request: NextRequest) {
@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
   const company = body.company?.trim()
   if (!company) return NextResponse.json({ error: 'Company name is required' }, { status: 400 })
 
-  const territoryState = await resolveTerritoryState(request)
+  const { territoryState, anthropicKey } = await resolveTenantData(request)
+  const client = new Anthropic({ apiKey: anthropicKey ?? undefined })
 
   const territoryLine = territoryState
     ? `Target territory: ${territoryState} and neighboring states. Only suggest companies headquartered in or with significant operations there.`
